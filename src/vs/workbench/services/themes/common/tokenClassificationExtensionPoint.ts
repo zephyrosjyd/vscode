@@ -237,21 +237,13 @@ export class TokenClassificationExtensionPoints {
 					tokenStyleDefault.dark = validateStyle(contribution.dark, 'tokenStyleDefaults.dark', collector);
 					tokenStyleDefault.hc = validateStyle(contribution.highContrast, 'tokenStyleDefaults.highContrast', collector);
 
-					const [type, ...modifiers] = contribution.selector.split('.');
-					const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-					if (classification) {
-						tokenClassificationRegistry.registerTokenStyleDefault(classification, tokenStyleDefault);
-					}
+					tokenClassificationRegistry.registerTokenStyleDefault(contribution.selector, tokenStyleDefault);
 				}
 			}
 			for (const extension of delta.removed) {
 				const extensionValue = <ITokenStyleDefaultExtensionPoint[]>extension.value;
 				for (const contribution of extensionValue) {
-					const [type, ...modifiers] = contribution.selector.split('.');
-					const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-					if (classification) {
-						tokenClassificationRegistry.deregisterTokenStyleDefault(classification);
-					}
+					tokenClassificationRegistry.deregisterTokenStyleDefault(contribution.selector);
 				}
 			}
 		});

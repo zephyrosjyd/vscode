@@ -97,7 +97,7 @@ export interface TokenStyleDefaults {
 
 export interface TokenStylingDefaultRule {
 	match(classification: TokenClassification): number;
-	selector: TokenClassification;
+	selector: string;
 	defaults: TokenStyleDefaults;
 }
 
@@ -136,20 +136,20 @@ export interface ITokenClassificationRegistry {
 
 	getTokenClassification(type: string, modifiers: string[]): TokenClassification | undefined;
 
-	getTokenStylingRule(classification: TokenClassification, value: TokenStyle): TokenStylingRule;
+	getTokenStylingRule(selector: string, value: TokenStyle): TokenStylingRule;
 
 	/**
 	 * Register a TokenStyle default to the registry.
 	 * @param selector The rule selector
 	 * @param defaults The default values
 	 */
-	registerTokenStyleDefault(selector: TokenClassification, defaults: TokenStyleDefaults): void;
+	registerTokenStyleDefault(selector: string, defaults: TokenStyleDefaults): void;
 
 	/**
 	 * Deregister a TokenStyle default to the registry.
 	 * @param selector The rule selector
 	 */
-	deregisterTokenStyleDefault(selector: TokenClassification): void;
+	deregisterTokenStyleDefault(selector: string): void;
 
 	/**
 	 * Deregister a TokenType from the registry.
@@ -276,7 +276,12 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	}
 
 
-	private newMatcher(selector: TokenClassification) {
+	private newMatcher(selectorExpression: string) {
+		const [type, ...modifiers] = selectorExpression.split('.');
+		const selector = tokenClassificationRegistry.getTokenClassification(type, modifiers);
+		if (!selector) {
+			return () => -1;
+		}
 		const score = getTokenStylingScore(selector);
 		return (classification: TokenClassification) => {
 			const selectorType = selector.type;
@@ -291,19 +296,19 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		};
 	}
 
-	public getTokenStylingRule(selector: TokenClassification, value: TokenStyle): TokenStylingRule {
+	public getTokenStylingRule(selector: string, value: TokenStyle): TokenStylingRule {
 		return {
 			match: this.newMatcher(selector),
 			value
 		};
 	}
 
-	public registerTokenStyleDefault(selector: TokenClassification, defaults: TokenStyleDefaults): void {
+	public registerTokenStyleDefault(selector: string, defaults: TokenStyleDefaults): void {
 		this.tokenStylingDefaultRules.push({ selector, match: this.newMatcher(selector), defaults });
 	}
 
-	public deregisterTokenStyleDefault(classification: TokenClassification): void {
-		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.selector.type === classification.type && r.selector.modifiers === classification.modifiers));
+	public deregisterTokenStyleDefault(selector: string): void {
+		this.tokenStylingDefaultRules = this.tokenStylingDefaultRules.filter(r => !(r.selector === selector));
 	}
 
 	public deregisterTokenType(id: string): void {
@@ -359,8 +364,7 @@ function registerDefaultClassifications(): void {
 		tokenClassificationRegistry.registerTokenType(id, description, deprecationMessage);
 
 		if (scopesToProbe || extendsTC) {
-			const classification = tokenClassificationRegistry.getTokenClassification(id, []);
-			tokenClassificationRegistry.registerTokenStyleDefault(classification!, { scopesToProbe, light: extendsTC, dark: extendsTC, hc: extendsTC });
+			tokenClassificationRegistry.registerTokenStyleDefault(id, { scopesToProbe, light: extendsTC, dark: extendsTC, hc: extendsTC });
 		}
 		return id;
 	}

@@ -690,19 +690,15 @@ function getScopeMatcher(rule: ITextMateThemingRule): Matcher<ProbeScope> {
 function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenStyleCustomizations, result: TokenStylingRule[] = []) {
 	for (let key in tokenStylingRuleSection) {
 		if (key[0] !== '[') {
-			const [type, ...modifiers] = key.split('.');
-			const classification = tokenClassificationRegistry.getTokenClassification(type, modifiers);
-			if (classification) {
-				const settings = tokenStylingRuleSection[key];
-				let style: TokenStyle | undefined;
-				if (typeof settings === 'string') {
-					style = TokenStyle.fromSettings(settings, undefined);
-				} else if (isTokenColorizationSetting(settings)) {
-					style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle);
-				}
-				if (style) {
-					result.push(tokenClassificationRegistry.getTokenStylingRule(classification, style));
-				}
+			const settings = tokenStylingRuleSection[key];
+			let style: TokenStyle | undefined;
+			if (typeof settings === 'string') {
+				style = TokenStyle.fromSettings(settings, undefined);
+			} else if (isTokenColorizationSetting(settings)) {
+				style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle);
+			}
+			if (style) {
+				result.push(tokenClassificationRegistry.getTokenStylingRule(key, style));
 			}
 		}
 	}
