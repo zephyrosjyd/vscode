@@ -85,7 +85,7 @@ export class RawDebugSession implements IDisposable {
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
-
+		console.log('raw debug session created');
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
@@ -599,6 +599,7 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
+		console.log('sending ' + command);
 		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
 				errorDispatch(new Error('no debug adapter found'));
