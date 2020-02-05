@@ -132,6 +132,7 @@ suite('Debug', function () {
 		assert.equal(debug.activeDebugSession, undefined);
 
 		disposeAll(toDispose);
+		console.log('finished');
 	});
 
 	test('start debugging failure', async function () {
