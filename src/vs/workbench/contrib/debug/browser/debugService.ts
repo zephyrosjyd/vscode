@@ -260,7 +260,7 @@ export class DebugService implements IDebugService {
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
 	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
-
+		console.log('1');
 		this.startInitializingState();
 		try {
 			// make sure to save all files and that the configuration is up to date
@@ -268,6 +268,8 @@ export class DebugService implements IDebugService {
 			await this.editorService.saveAll();
 			await this.configurationService.reloadConfiguration(launch ? launch.workspace : undefined);
 			await this.extensionService.whenInstalledExtensionsRegistered();
+			console.log('2');
+
 
 			let config: IConfig | undefined;
 			let compound: ICompound | undefined;
@@ -361,6 +363,8 @@ export class DebugService implements IDebugService {
 	private async createSession(launch: ILaunch | undefined, config: IConfig | undefined, options?: IDebugSessionOptions): Promise<boolean> {
 		// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
 		// Storing the type in the config would break extensions that assume that the no-folder case is indicated by an empty config.
+		console.log('3');
+
 		let type: string | undefined;
 		if (config) {
 			type = config.type;
@@ -424,6 +428,7 @@ export class DebugService implements IDebugService {
 				const workspace = launch?.workspace || this.contextService.getWorkspace();
 				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
 				if (taskResult === TaskRunResult.Success) {
+					console.log('4');
 					return this.doCreateSession(launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 				}
 				return false;
@@ -462,6 +467,8 @@ export class DebugService implements IDebugService {
 		// this event doesn't go to extensions
 		this._onWillNewSession.fire(session);
 
+		console.log('5');
+
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
 		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
@@ -470,6 +477,7 @@ export class DebugService implements IDebugService {
 
 		try {
 			await this.launchOrAttachToSession(session);
+			console.log('6');
 
 			const internalConsoleOptions = session.configuration.internalConsoleOptions || this.configurationService.getValue<IDebugConfiguration>('debug').internalConsoleOptions;
 			if (internalConsoleOptions === 'openOnSessionStart' || (this.viewModel.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
@@ -488,6 +496,7 @@ export class DebugService implements IDebugService {
 			this._onDidNewSession.fire(session);
 
 			await this.telemetryDebugSessionStart(root, session.configuration.type);
+			console.log('7');
 
 			return true;
 		} catch (error) {
