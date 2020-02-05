@@ -68,7 +68,7 @@ suite('Debug', function () {
 				}
 			})
 		}));
-		console.log('staaarting');
+		console.log('staaaaaarting');
 
 		const capabilitiesPromise = new Promise<void>(resolve => capabilitiesReceived = resolve);
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
