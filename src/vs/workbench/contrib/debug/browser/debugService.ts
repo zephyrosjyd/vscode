@@ -526,7 +526,10 @@ export class DebugService implements IDebugService {
 		const dbgr = this.configurationManager.getDebugger(session.configuration.type);
 		try {
 			await session.initialize(dbgr!);
+			console.log('debug service initializzed');
 			await session.launchOrAttach(session.configuration);
+			console.log('debug service session launched and attached');
+
 			if (forceFocus || !this.viewModel.focusedSession) {
 				await this.focusStackFrame(undefined, undefined, session);
 			}
