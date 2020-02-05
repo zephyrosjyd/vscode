@@ -306,6 +306,7 @@ export class DebugService implements IDebugService {
 					}
 				}
 
+
 				const values = await Promise.all(compound.configurations.map(configData => {
 					const name = typeof configData === 'string' ? configData : configData.name;
 					if (name === compound!.name) {
