@@ -74,7 +74,7 @@ suite('Debug', function () {
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
 		console.log('awaiting on launc debug');
-		await commands.executeCommand('workbench.action.debug.start');
+		commands.executeCommand('workbench.action.debug.start');
 		console.log('start debugging returned');
 
 		console.log('awaiting on capabilities');
