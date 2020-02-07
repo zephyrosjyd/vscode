@@ -615,10 +615,7 @@ export class RawDebugSession implements IDisposable {
 				if (cancelationListener) {
 					cancelationListener.dispose();
 				}
-				if (command === 'launch') {
-					console.log('LAUNCH RESPONSE');
-					console.log(response);
-				}
+				console.log('got response for' + command);
 
 				if (response.success) {
 					completeDispatch(response);
