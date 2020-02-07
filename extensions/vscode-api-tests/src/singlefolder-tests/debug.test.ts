@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { debug, workspace, commands, window, Disposable } from 'vscode';
-import { basename } from 'path';
+import { debug, workspace, Disposable, commands, window } from 'vscode';
 import { disposeAll } from '../utils';
+import { basename } from 'path';
 
 suite('Debug', function () {
 
