@@ -81,9 +81,6 @@ suite('Debug', function () {
 		console.log('awaiting on configuration done');
 		await configurationDonePromise;
 
-		assert.notEqual(debug.activeDebugSession, undefined);
-		assert.equal(debug.activeDebugSession?.name, 'Launch debug.js');
-
 		console.log('awaiting on first variables');
 		await firstVariablesRetrieved;
 		assert.equal(stoppedEvents, 1);
