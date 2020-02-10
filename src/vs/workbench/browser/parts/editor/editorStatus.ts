@@ -12,7 +12,7 @@ import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
-import { UntitledTextEditorInput } from 'vs/workbench/common/editor/untitledTextEditorInput';
+import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput, IEditor as IBaseEditor, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
@@ -575,13 +575,14 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private updateStatusBar(): void {
+		const activeInput = this.editorService.activeEditor;
 		const activeControl = this.editorService.activeControl;
 		const activeCodeEditor = activeControl ? withNullAsUndefined(getCodeEditor(activeControl.getControl())) : undefined;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
 		this.onSelectionChange(activeCodeEditor);
-		this.onModeChange(activeCodeEditor);
+		this.onModeChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
 		this.onEncodingChange(activeControl, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
@@ -609,7 +610,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 			// Hook Listener for mode changes
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelLanguage((event: IModelLanguageChangedEvent) => {
-				this.onModeChange(activeCodeEditor);
+				this.onModeChange(activeCodeEditor, activeInput);
 			}));
 
 			// Hook Listener for content changes
@@ -663,11 +664,11 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private onModeChange(editorWidget: ICodeEditor | undefined): void {
+	private onModeChange(editorWidget: ICodeEditor | undefined, editorInput: IEditorInput | undefined): void {
 		let info: StateDelta = { mode: undefined };
 
 		// We only support text based editors
-		if (editorWidget) {
+		if (editorWidget && editorInput && toEditorWithModeSupport(editorInput)) {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
 				const modeId = textModel.getLanguageIdentifier().language;
@@ -1009,7 +1010,7 @@ export class ChangeModeAction extends Action {
 		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER }) : null;
 
 		let hasLanguageSupport = !!resource;
-		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.hasAssociatedFilePath(resource)) {
+		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
 			hasLanguageSupport = false; // no configuration for untitled resources (e.g. "Untitled-1")
 		}
 

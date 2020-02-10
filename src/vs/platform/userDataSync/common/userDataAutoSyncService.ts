@@ -59,24 +59,26 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private async sync(loop: boolean, auto: boolean): Promise<void> {
 		if (this.enabled) {
 			try {
-				if (auto) {
-					if (await this.isTurnedOffEverywhere()) {
-						// Turned off everywhere. Reset & Stop Sync.
-						this.logService.info('Auto Sync: Turning off sync as it is turned off everywhere.');
-						await this.userDataSyncService.resetLocal();
-						await this.userDataSyncUtilService.updateConfigurationValue('sync.enable', false);
-						return;
-					}
-					if (this.userDataSyncService.status !== SyncStatus.Idle) {
-						this.logService.trace('Auto Sync: Skipped once as it is syncing already');
-						return;
-					}
+				if (this.userDataSyncService.status !== SyncStatus.Idle) {
+					this.logService.trace('Auto Sync: Skipped once as it is syncing already');
+					return;
 				}
 				await this.userDataSyncService.sync();
 				this.resetFailures();
 			} catch (e) {
-				this.successiveFailures++;
+				if (e instanceof UserDataSyncError && e.code === UserDataSyncErrorCode.TurnedOff) {
+					this.logService.info('Auto Sync: Sync is turned off in the cloud.');
+					this.logService.info('Auto Sync: Resetting the local sync state.');
+					await this.userDataSyncService.resetLocal();
+					this.logService.info('Auto Sync: Completed resetting the local sync state.');
+					if (auto) {
+						return this.userDataSyncUtilService.updateConfigurationValue('sync.enable', false);
+					} else {
+						return this.sync(loop, auto);
+					}
+				}
 				this.logService.error(e);
+				this.successiveFailures++;
 				this._onError.fire(e instanceof UserDataSyncError ? { code: e.code, source: e.source } : { code: UserDataSyncErrorCode.Unknown });
 			}
 			if (loop) {
@@ -84,14 +86,8 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				this.sync(loop, true);
 			}
 		} else {
-			this.logService.trace('Not syncing as it is disabled.');
+			this.logService.trace('Auto Sync: Not syncing as it is disabled.');
 		}
-	}
-
-	private async isTurnedOffEverywhere(): Promise<boolean> {
-		const hasRemote = await this.userDataSyncService.hasRemoteData();
-		const hasPreviouslySynced = await this.userDataSyncService.hasPreviouslySynced();
-		return !hasRemote && hasPreviouslySynced;
 	}
 
 	private async isAutoSyncEnabled(): Promise<boolean> {
@@ -107,7 +103,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	async triggerAutoSync(): Promise<void> {
 		if (this.enabled) {
 			return this.syncDelayer.trigger(() => {
-				this.logService.info('Sync: Triggerred.');
+				this.logService.info('Auto Sync: Triggerred.');
 				return this.sync(false, true);
 			}, this.successiveFailures
 				? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */
