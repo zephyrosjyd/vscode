@@ -72,7 +72,7 @@ suite.only('Debug', function () {
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
 		const capabilitiesPromise = new Promise<void>(resolve => capabilitiesReceived = resolve);
-		console.log('awaiting            on launc debug');
+		console.log('awaiting           on launc debug');
 		await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
 		console.log('start          debugging returned');
 
