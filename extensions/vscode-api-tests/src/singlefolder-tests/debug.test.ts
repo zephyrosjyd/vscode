@@ -69,7 +69,7 @@ suite('Debug', function () {
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
 		console.log('awaiting     on launc debug');
 		await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
-		console.log('start         debugging returned');
+		console.log('start        debugging returned');
 
 		console.log('awaiting on initialized');
 		await initializedPromise;
