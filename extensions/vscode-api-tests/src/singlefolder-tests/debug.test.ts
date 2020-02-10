@@ -8,7 +8,7 @@ import { debug, workspace, Disposable, commands, window } from 'vscode';
 import { disposeAll } from '../utils';
 import { basename } from 'path';
 
-suite('Debug', function () {
+suite.only('Debug', function () {
 
 	test('breakpoints', async function () {
 		assert.equal(debug.breakpoints.length, 0);
@@ -43,10 +43,10 @@ suite('Debug', function () {
 		let variablesReceived: () => void;
 		let initializedReceived: () => void;
 		let configurationDoneReceived: () => void;
-
+		let capabilitiesReceived: () => void;
 		const firstVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
 		const toDispose: Disposable[] = [];
-		toDispose.push(debug.registerDebugAdapterTrackerFactory('node2', {
+		toDispose.push(debug.registerDebugAdapterTrackerFactory('*', {
 			createDebugAdapterTracker: () => ({
 				onDidSendMessage: m => {
 					if (m.event === 'stopped') {
@@ -54,6 +54,9 @@ suite('Debug', function () {
 					}
 					if (m.type === 'response' && m.command === 'variables') {
 						variablesReceived();
+					}
+					if (m.event === 'capabilities') {
+						capabilitiesReceived();
 					}
 					if (m.event === 'initialized') {
 						initializedReceived();
@@ -68,17 +71,22 @@ suite('Debug', function () {
 
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
+		const capabilitiesPromise = new Promise<void>(resolve => capabilitiesReceived = resolve);
 		console.log('awaiting               on launc debug');
-		commands.executeCommand('workbench.action.debug.start');
+		await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
 		console.log('start          debugging returned');
 
 		console.log('awaiting on initialized');
 		await initializedPromise;
 		console.log('awaiting on configuration done');
 		await configurationDonePromise;
+		console.log('awaiting on capabilities');
+		await capabilitiesPromise;
 
 		console.log('awaiting on first variables');
 		await firstVariablesRetrieved;
+		assert.notEqual(debug.activeDebugSession, undefined);
+		assert.equal(debug.activeDebugSession?.name, 'Launch debug.js');
 		assert.equal(stoppedEvents, 1);
 
 		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
@@ -121,6 +129,8 @@ suite('Debug', function () {
 		await commands.executeCommand('workbench.action.debug.stop');
 		console.log('awaiting session terminated');
 		await sessionTerminatedPromise;
+		const secondSessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
+		await secondSessionTerminatedPromise;
 		assert.equal(debug.activeDebugSession, undefined);
 
 		disposeAll(toDispose);
