@@ -227,7 +227,6 @@ export class DebugSession implements IDebugSession {
 
 		// __sessionID only used for EH debugging (but we add it always for now...)
 		config.__sessionId = this.getId();
-		console.log('about to launch or attach');
 		await this.raw.launchOrAttach(config);
 	}
 

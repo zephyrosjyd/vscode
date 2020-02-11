@@ -60,31 +60,26 @@ suite('Debug', function () {
 					if (m.command === 'configurationDone') {
 						configurationDoneReceived();
 					}
+					if (m.event === 'output') {
+						console.log(m);
+					}
 				}
 			})
 		}));
-		console.log('staaaaaaaarting');
 
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
-		console.log('awaiting    on launc debug');
 		await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
-		console.log('start .  debugging returned');
 
-		console.log('awaiting on initialized');
 		await initializedPromise;
-		console.log('awaiting on configuration done');
 		await configurationDonePromise;
 
-		console.log('awaiting on first variables');
 		await firstVariablesRetrieved;
 		assert.notEqual(debug.activeDebugSession, undefined);
 		assert.equal(stoppedEvents, 1);
 
 		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		console.log('awaiting on step over');
 		await commands.executeCommand('workbench.action.debug.stepOver');
-		console.log('awaiting on second variables');
 		await secondVariablesRetrieved;
 		assert.equal(stoppedEvents, 2);
 		const editor = window.activeTextEditor;
@@ -92,23 +87,17 @@ suite('Debug', function () {
 		assert.equal(basename(editor!.document.fileName), 'debug.js');
 
 		const thirdVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		console.log('awaiting on step over second time');
 		await commands.executeCommand('workbench.action.debug.stepOver');
-		console.log('awaiting on third variables');
 		await thirdVariablesRetrieved;
 		assert.equal(stoppedEvents, 3);
 
 		const fourthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		console.log('awaiting on step into');
 		await commands.executeCommand('workbench.action.debug.stepInto');
-		console.log('awaiting on fourth variables');
 		await fourthVariablesRetrieved;
 		assert.equal(stoppedEvents, 4);
 
 		const fifthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		console.log('awaiting on step out');
 		await commands.executeCommand('workbench.action.debug.stepOut');
-		console.log('awaiting on fifth variables');
 		await fifthVariablesRetrieved;
 		assert.equal(stoppedEvents, 5);
 
@@ -117,14 +106,11 @@ suite('Debug', function () {
 			sessionTerminated();
 		}));
 		const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
-		console.log('awaiting on stop');
 		await commands.executeCommand('workbench.action.debug.stop');
-		console.log('awaiting session terminated');
 		await sessionTerminatedPromise;
 		assert.equal(debug.activeDebugSession, undefined);
 
 		disposeAll(toDispose);
-		console.log('finished');
 	});
 
 	test('start debugging failure', async function () {

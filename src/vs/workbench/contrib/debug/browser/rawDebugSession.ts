@@ -85,7 +85,6 @@ export class RawDebugSession implements IDisposable {
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
-		console.log('raw debug session created');
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
@@ -258,7 +257,6 @@ export class RawDebugSession implements IDisposable {
 
 	async launchOrAttach(config: IConfig): Promise<DebugProtocol.Response> {
 		const response = await this.send(config.request, config);
-		console.log('got response from launch');
 		this.mergeCapabilities(response.body);
 
 		return response;
@@ -607,9 +605,6 @@ export class RawDebugSession implements IDisposable {
 				return;
 			}
 			let cancelationListener: IDisposable;
-			if (command === 'launch') {
-				console.log('ABOUT TO LAUNCH RESPONSE');
-			}
 
 			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
 				if (cancelationListener) {
