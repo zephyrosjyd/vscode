@@ -121,8 +121,6 @@ suite('Debug', function () {
 		await commands.executeCommand('workbench.action.debug.stop');
 		console.log('awaiting session terminated');
 		await sessionTerminatedPromise;
-		const secondSessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
-		await secondSessionTerminatedPromise;
 		assert.equal(debug.activeDebugSession, undefined);
 
 		disposeAll(toDispose);
