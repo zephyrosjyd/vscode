@@ -8,7 +8,7 @@ import { debug, workspace, Disposable, commands, window } from 'vscode';
 import { disposeAll } from '../utils';
 import { basename } from 'path';
 
-suite('Debug', function () {
+suite.only('Debug', function () {
 
 	test('breakpoints', async function () {
 		assert.equal(debug.breakpoints.length, 0);
@@ -59,9 +59,6 @@ suite('Debug', function () {
 					}
 					if (m.command === 'configurationDone') {
 						configurationDoneReceived();
-					}
-					if (m.event === 'output') {
-						console.log(m);
 					}
 				}
 			})

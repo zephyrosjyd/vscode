@@ -140,6 +140,7 @@ export class RawDebugSession implements IDisposable {
 					break;
 				case 'output':
 					this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
+					console.log(event?.body?.output);
 					break;
 				case 'breakpoint':
 					this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
