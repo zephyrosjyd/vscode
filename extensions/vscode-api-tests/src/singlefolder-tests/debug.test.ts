@@ -64,7 +64,7 @@ suite.only('Debug', function () {
 			})
 		}));
 
-		console.log('  ');
+		console.log('   ');
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
 		await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
