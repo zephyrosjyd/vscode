@@ -106,8 +106,6 @@ suite.only('Debug', function () {
 		const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
 		await commands.executeCommand('workbench.action.debug.stop');
 		await sessionTerminatedPromise;
-		assert.equal(debug.activeDebugSession, undefined);
-
 		disposeAll(toDispose);
 	});
 
