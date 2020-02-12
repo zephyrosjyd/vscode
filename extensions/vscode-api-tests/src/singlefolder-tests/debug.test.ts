@@ -38,7 +38,7 @@ suite('Debug', function () {
 	});
 
 	test('start debugging', async function () {
-		console.log('        ');
+		console.log('         ');
 		assert.equal(debug.activeDebugSession, undefined);
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;
