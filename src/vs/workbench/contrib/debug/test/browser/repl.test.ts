@@ -130,7 +130,7 @@ suite('Debug - REPL', () => {
 		assert.equal(replModel.getReplElements().length, 0);
 	});
 
-	test('repl ordering', async () => {
+	test.skip('repl ordering', async () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 

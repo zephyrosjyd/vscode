@@ -8,7 +8,7 @@ import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDeb
 import { timeout } from 'vs/base/common/async';
 
 suite('Debug - AbstractDebugAdapter', () => {
-	suite('event ordering', () => {
+	suite.skip('event ordering', () => {
 		let adapter: MockDebugAdapter;
 		let output: string[];
 		setup(() => {

@@ -17,7 +17,6 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	private requestCallback: ((request: DebugProtocol.Request) => void) | undefined;
 	private eventCallback: ((request: DebugProtocol.Event) => void) | undefined;
 	private messageCallback: ((message: DebugProtocol.ProtocolMessage) => void) | undefined;
-	private queue: DebugProtocol.ProtocolMessage[] = [];
 	protected readonly _onError = new Emitter<Error>();
 	protected readonly _onExit = new Emitter<number | null>();
 
@@ -106,11 +105,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		if (this.messageCallback) {
 			this.messageCallback(message);
 		} else {
-			this.queue.push(message);
-			if (this.queue.length === 1) {
-				// first item = need to start processing loop
-				this.processQueue();
-			}
+			this.process(message);
 		}
 	}
 
@@ -140,38 +135,26 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	/**
 	 * Reads and dispatches items from the queue until it is empty.
 	 */
-	private async processQueue() {
-		let message: DebugProtocol.ProtocolMessage | undefined;
-		while (this.queue.length) {
-			if (!message || this.needsTaskBoundaryBetween(this.queue[0], message)) {
-				await timeout(0);
-			}
-
-			message = this.queue.shift();
-			if (!message) {
-				return; // may have been disposed of
-			}
-
-			switch (message.type) {
-				case 'event':
-					if (this.eventCallback) {
-						this.eventCallback(<DebugProtocol.Event>message);
-					}
-					break;
-				case 'request':
-					if (this.requestCallback) {
-						this.requestCallback(<DebugProtocol.Request>message);
-					}
-					break;
-				case 'response':
-					const response = <DebugProtocol.Response>message;
-					const clb = this.pendingRequests.get(response.request_seq);
-					if (clb) {
-						this.pendingRequests.delete(response.request_seq);
-						clb(response);
-					}
-					break;
-			}
+	private async process(message: DebugProtocol.ProtocolMessage) {
+		switch (message.type) {
+			case 'event':
+				if (this.eventCallback) {
+					this.eventCallback(<DebugProtocol.Event>message);
+				}
+				break;
+			case 'request':
+				if (this.requestCallback) {
+					this.requestCallback(<DebugProtocol.Request>message);
+				}
+				break;
+			case 'response':
+				const response = <DebugProtocol.Response>message;
+				const clb = this.pendingRequests.get(response.request_seq);
+				if (clb) {
+					this.pendingRequests.delete(response.request_seq);
+					clb(response);
+				}
+				break;
 		}
 	}
 
@@ -208,6 +191,5 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	dispose(): void {
-		this.queue = [];
 	}
 }
