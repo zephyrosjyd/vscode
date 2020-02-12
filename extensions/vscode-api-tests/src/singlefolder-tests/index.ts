@@ -11,7 +11,7 @@ const suite = 'Integration Single Folder Tests';
 const options: any = {
 	ui: 'tdd',
 	useColors: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
-	timeout: 60000
+	timeout: 600000
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
