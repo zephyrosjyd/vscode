@@ -52,7 +52,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 		}
 	}
 
-	private handleData(data: Buffer): void {
+	private async handleData(data: Buffer): Promise<void> {
 
 		this.rawData = Buffer.concat([this.rawData, data]);
 
@@ -64,7 +64,7 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 					this.contentLength = -1;
 					if (message.length > 0) {
 						try {
-							this.acceptMessage(<DebugProtocol.ProtocolMessage>JSON.parse(message));
+							await this.acceptMessage(<DebugProtocol.ProtocolMessage>JSON.parse(message));
 						} catch (e) {
 							this._onError.fire(new Error((e.message || e) + '\n' + message));
 						}

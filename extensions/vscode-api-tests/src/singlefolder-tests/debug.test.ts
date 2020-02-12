@@ -8,7 +8,7 @@ import { debug, workspace, Disposable, commands, window } from 'vscode';
 import { disposeAll } from '../utils';
 import { basename } from 'path';
 
-suite('Debug', function () {
+suite.only('Debug', function () {
 
 	test('breakpoints', async function () {
 		assert.equal(debug.breakpoints.length, 0);
@@ -68,17 +68,23 @@ suite('Debug', function () {
 		console.log('');
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
+		console.log('awaiting start debugging');
 		await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
 
+		console.log('awaiting initialized');
 		await initializedPromise;
+		console.log('awaiting configuratin done');
 		await configurationDonePromise;
 
+		console.log('awaiting first variables');
 		await firstVariablesRetrieved;
 		assert.notEqual(debug.activeDebugSession, undefined);
 		assert.equal(stoppedEvents, 1);
 
 		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
+		console.log('awaiting step over');
 		await commands.executeCommand('workbench.action.debug.stepOver');
+		console.log('awaiting second variables');
 		await secondVariablesRetrieved;
 		assert.equal(stoppedEvents, 2);
 		const editor = window.activeTextEditor;
@@ -86,17 +92,23 @@ suite('Debug', function () {
 		assert.equal(basename(editor!.document.fileName), 'debug.js');
 
 		const thirdVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
+		console.log('awaiting step over');
 		await commands.executeCommand('workbench.action.debug.stepOver');
+		console.log('awaiting thirdvaraibles');
 		await thirdVariablesRetrieved;
 		assert.equal(stoppedEvents, 3);
 
 		const fourthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
+		console.log('awaiting step into');
 		await commands.executeCommand('workbench.action.debug.stepInto');
+		console.log('awaiting fourth variables');
 		await fourthVariablesRetrieved;
 		assert.equal(stoppedEvents, 4);
 
 		const fifthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
+		console.log('awaiting step out');
 		await commands.executeCommand('workbench.action.debug.stepOut');
+		console.log('awaiting fifth variables');
 		await fifthVariablesRetrieved;
 		assert.equal(stoppedEvents, 5);
 
@@ -105,7 +117,9 @@ suite('Debug', function () {
 			sessionTerminated();
 		}));
 		const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
+		console.log('awaiting stop ');
 		await commands.executeCommand('workbench.action.debug.stop');
+		console.log('awaiting session termianted');
 		await sessionTerminatedPromise;
 		disposeAll(toDispose);
 	});

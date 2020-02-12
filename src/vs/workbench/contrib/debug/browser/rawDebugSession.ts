@@ -140,7 +140,6 @@ export class RawDebugSession implements IDisposable {
 					break;
 				case 'output':
 					this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
-					console.log(event?.body?.output);
 					break;
 				case 'breakpoint':
 					this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
@@ -599,7 +598,6 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
-		console.log('sending ' + command);
 		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
 				errorDispatch(new Error('no debug adapter found'));
@@ -611,7 +609,6 @@ export class RawDebugSession implements IDisposable {
 				if (cancelationListener) {
 					cancelationListener.dispose();
 				}
-				console.log('got response for ' + command);
 
 				if (response.success) {
 					completeDispatch(response);
