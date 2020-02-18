@@ -53,9 +53,8 @@ import { ITerminalService, ITerminalInstanceService } from 'vs/workbench/contrib
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
-	TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource,
-	KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition
+	TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier, TASK_RUNNING_STATE, TaskRunSource, TaskDefinition
 } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, ITaskProvider, ProblemMatcherRunOptions, CustomizationProperties, TaskFilter, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -65,7 +64,6 @@ import { TerminalTaskSystem } from './terminalTaskSystem';
 
 import { IQuickInputService, IQuickPickItem, QuickPickInput, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 
@@ -80,7 +78,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { find } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ProviderProgressMananger } from 'vs/workbench/contrib/tasks/browser/providerProgressManager';
+import { TaskProviderManager, isWorkspaceFolder, TaskMap } from 'vs/workbench/contrib/tasks/browser/providerProgressManager';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
@@ -139,55 +137,6 @@ interface TaskCustomizationTelemetryEvent {
 	properties: string[];
 }
 
-function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder is IWorkspaceFolder {
-	return 'uri' in folder;
-}
-
-class TaskMap {
-	private _store: Map<string, Task[]> = new Map();
-
-	public forEach(callback: (value: Task[], folder: string) => void): void {
-		this._store.forEach(callback);
-	}
-
-	private getKey(workspaceFolder: IWorkspace | IWorkspaceFolder | string): string {
-		let key: string | undefined;
-		if (Types.isString(workspaceFolder)) {
-			key = workspaceFolder;
-		} else {
-			const uri: URI | null | undefined = isWorkspaceFolder(workspaceFolder) ? workspaceFolder.uri : workspaceFolder.configuration;
-			key = uri ? uri.toString() : '';
-		}
-		return key;
-	}
-
-	public get(workspaceFolder: IWorkspace | IWorkspaceFolder | string): Task[] {
-		const key = this.getKey(workspaceFolder);
-		let result: Task[] | undefined = this._store.get(key);
-		if (!result) {
-			result = [];
-			this._store.set(key, result);
-		}
-		return result;
-	}
-
-	public add(workspaceFolder: IWorkspace | IWorkspaceFolder | string, ...task: Task[]): void {
-		const key = this.getKey(workspaceFolder);
-		let values = this._store.get(key);
-		if (!values) {
-			values = [];
-			this._store.set(key, values);
-		}
-		values.push(...task);
-	}
-
-	public all(): Task[] {
-		let result: Task[] = [];
-		this._store.forEach((values) => result.push(...values));
-		return result;
-	}
-}
-
 interface TaskQuickPickEntry extends IQuickPickItem {
 	task: Task | undefined | null;
 }
@@ -221,7 +170,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _providers: Map<number, ITaskProvider>;
 	private _providerTypes: Map<number, string>;
 	protected _taskSystemInfos: Map<string, TaskSystemInfo>;
-	private _providerProgressManager: ProviderProgressMananger | undefined;
 
 	protected _workspaceTasksPromise?: Promise<Map<string, WorkspaceFolderTaskResult>>;
 	protected _areJsonTasksSupportedPromise: Promise<boolean> = Promise.resolve(false);
@@ -564,32 +512,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract versionAndEngineCompatible(filter?: TaskFilter): boolean;
 
-	public tasks(filter?: TaskFilter): Promise<Task[]> {
+	private createProviderManager(): TaskProviderManager {
+		return new TaskProviderManager(this._outputChannel, this._providers, this._providerTypes, this.configurationService);
+	}
+
+	public tasks(filter?: TaskFilter, providerManager?: TaskProviderManager): Promise<Task[]> {
 		if (!this.versionAndEngineCompatible(filter)) {
 			return Promise.resolve<Task[]>([]);
 		}
-		return this.getGroupedTasks(filter ? filter.type : undefined).then((map) => {
-			if (!filter || !filter.type) {
-				return map.all();
-			}
-			let result: Task[] = [];
-			map.forEach((tasks) => {
-				for (let task of tasks) {
-					if (ContributedTask.is(task) && task.defines.type === filter.type) {
-						result.push(task);
-					} else if (CustomTask.is(task)) {
-						if (task.type === filter.type) {
-							result.push(task);
-						} else {
-							let customizes = task.customizes();
-							if (customizes && customizes.type === filter.type) {
-								result.push(task);
-							}
-						}
-					}
-				}
-			});
-			return result;
+		if (!providerManager) {
+			providerManager = this.createProviderManager();
+		}
+		return this.getGroupedTasks(filter ? filter.type : undefined, providerManager).then(() => {
+			return providerManager!.result().then(result => result.all());
 		});
 	}
 
@@ -707,11 +642,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
+	public async run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System, providerManager?: TaskProviderManager): Promise<ITaskSummary | undefined> {
 		if (!task) {
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
-		return this.getGroupedTasks().then((grouped) => {
+		if (!providerManager) {
+			providerManager = this.createProviderManager();
+		}
+		if (!providerManager.startProviding) {
+			providerManager.startProviding(await this.getWorkspaceTasks());
+		}
+		return providerManager.result().then((grouped) => {
 			let resolver = this.createResolver(grouped);
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
 				return this.attachProblemMatcher(task).then((toExecute) => {
@@ -734,11 +675,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.handleError(error);
 			return Promise.reject(error);
 		});
-	}
-
-	private isProvideTasksEnabled(): boolean {
-		const settingValue = this.configurationService.getValue('task.autoDetect');
-		return settingValue === 'on';
 	}
 
 	private isProblemMatcherPromptEnabled(type?: string): boolean {
@@ -1349,228 +1285,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract getTaskSystem(): ITaskSystem;
 
-	private async provideTasksWithWarning(provider: ITaskProvider, type: string, validTypes: IStringDictionary<boolean>): Promise<TaskSet | undefined> {
-		return new Promise<TaskSet>(async (resolve, reject) => {
-			let isDone = false;
-			let disposable: IDisposable | undefined;
-			const providePromise = provider.provideTasks(validTypes);
-			this._providerProgressManager?.addProvider(type, providePromise);
-			disposable = this._providerProgressManager?.canceled.token.onCancellationRequested(() => {
-				if (!isDone) {
-					resolve();
-				}
-			});
-			providePromise.then((value) => {
-				isDone = true;
-				disposable?.dispose();
-				resolve(value);
-			}, (e) => {
-				isDone = true;
-				disposable?.dispose();
-				reject(e);
-			});
-		});
-	}
-
-	private getGroupedTasks(type?: string): Promise<TaskMap> {
-		return Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
-			let validTypes: IStringDictionary<boolean> = Object.create(null);
-			TaskDefinitionRegistry.all().forEach(definition => validTypes[definition.taskType] = true);
-			validTypes['shell'] = true;
-			validTypes['process'] = true;
-			this._providerProgressManager = new ProviderProgressMananger();
-			return new Promise<TaskSet[]>(resolve => {
-				let result: TaskSet[] = [];
-				let counter: number = 0;
-				let done = (value: TaskSet | undefined) => {
-					if (value) {
-						result.push(value);
-					}
-					if (--counter === 0) {
-						resolve(result);
-					}
-				};
-				let error = (error: any) => {
-					try {
-						if (error && Types.isString(error.message)) {
-							this._outputChannel.append('Error: ');
-							this._outputChannel.append(error.message);
-							this._outputChannel.append('\n');
-							this.showOutput();
-						} else {
-							this._outputChannel.append('Unknown error received while collecting tasks from providers.\n');
-							this.showOutput();
-						}
-					} finally {
-						if (--counter === 0) {
-							resolve(result);
-						}
-					}
-				};
-				if (this.isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
-					for (const [handle, provider] of this._providers) {
-						if ((type === undefined) || (type === this._providerTypes.get(handle))) {
-							counter++;
-							this.provideTasksWithWarning(provider, this._providerTypes.get(handle)!, validTypes).then(done, error);
-						}
-					}
-				} else {
-					resolve(result);
-				}
-			});
-		}).then((contributedTaskSets) => {
-			let result: TaskMap = new TaskMap();
-			let contributedTasks: TaskMap = new TaskMap();
-
-			for (let set of contributedTaskSets) {
-				for (let task of set.tasks) {
-					let workspaceFolder = task.getWorkspaceFolder();
-					if (workspaceFolder) {
-						contributedTasks.add(workspaceFolder, task);
-					}
-				}
-			}
-
-			return this.getWorkspaceTasks().then(async (customTasks) => {
-				const customTasksKeyValuePairs = Array.from(customTasks);
-				const customTasksPromises = customTasksKeyValuePairs.map(async ([key, folderTasks]) => {
-					let contributed = contributedTasks.get(key);
-					if (!folderTasks.set) {
-						if (contributed) {
-							result.add(key, ...contributed);
-						}
-						return;
-					}
-
-					if (!contributed) {
-						result.add(key, ...folderTasks.set.tasks);
-					} else {
-						let configurations = folderTasks.configurations;
-						let legacyTaskConfigurations = folderTasks.set ? this.getLegacyTaskConfigurations(folderTasks.set) : undefined;
-						let customTasksToDelete: Task[] = [];
-						if (configurations || legacyTaskConfigurations) {
-							let unUsedConfigurations: Set<string> = new Set<string>();
-							if (configurations) {
-								Object.keys(configurations.byIdentifier).forEach(key => unUsedConfigurations.add(key));
-							}
-							for (let task of contributed) {
-								if (!ContributedTask.is(task)) {
-									continue;
-								}
-								if (configurations) {
-									let configuringTask = configurations.byIdentifier[task.defines._key];
-									if (configuringTask) {
-										unUsedConfigurations.delete(task.defines._key);
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-									} else {
-										result.add(key, task);
-									}
-								} else if (legacyTaskConfigurations) {
-									let configuringTask = legacyTaskConfigurations[task.defines._key];
-									if (configuringTask) {
-										result.add(key, TaskConfig.createCustomTask(task, configuringTask));
-										customTasksToDelete.push(configuringTask);
-									} else {
-										result.add(key, task);
-									}
-								} else {
-									result.add(key, task);
-								}
-							}
-							if (customTasksToDelete.length > 0) {
-								let toDelete = customTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
-									map[task._id] = true;
-									return map;
-								}, Object.create(null));
-								for (let task of folderTasks.set.tasks) {
-									if (toDelete[task._id]) {
-										continue;
-									}
-									result.add(key, task);
-								}
-							} else {
-								result.add(key, ...folderTasks.set.tasks);
-							}
-
-							const unUsedConfigurationsAsArray = Array.from(unUsedConfigurations);
-
-							const unUsedConfigurationPromises = unUsedConfigurationsAsArray.map(async (value) => {
-								let configuringTask = configurations!.byIdentifier[value];
-
-								for (const [handle, provider] of this._providers) {
-									if (configuringTask.type === this._providerTypes.get(handle)) {
-										try {
-											const resolvedTask = await provider.resolveTask(configuringTask);
-											if (resolvedTask && (resolvedTask._id === configuringTask._id)) {
-												result.add(key, TaskConfig.createCustomTask(resolvedTask, configuringTask));
-												return;
-											}
-										} catch (error) {
-											// Ignore errors. The task could not be provided by any of the providers.
-										}
-									}
-								}
-
-								this._outputChannel.append(nls.localize(
-									'TaskService.noConfiguration',
-									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
-									configuringTask.configures.type,
-									JSON.stringify(configuringTask._source.config.element, undefined, 4)
-								));
-								this.showOutput();
-							});
-
-							await Promise.all(unUsedConfigurationPromises);
-						} else {
-							result.add(key, ...folderTasks.set.tasks);
-							result.add(key, ...contributed);
-						}
-					}
-				});
-
-				await Promise.all(customTasksPromises);
-
-				return result;
-			}, () => {
-				// If we can't read the tasks.json file provide at least the contributed tasks
-				let result: TaskMap = new TaskMap();
-				for (let set of contributedTaskSets) {
-					for (let task of set.tasks) {
-						const folder = task.getWorkspaceFolder();
-						if (folder) {
-							result.add(folder, task);
-						}
-					}
-				}
-				return result;
-			});
-		});
-	}
-
-	private getLegacyTaskConfigurations(workspaceTasks: TaskSet): IStringDictionary<CustomTask> | undefined {
-		let result: IStringDictionary<CustomTask> | undefined;
-		function getResult(): IStringDictionary<CustomTask> {
-			if (result) {
-				return result;
-			}
-			result = Object.create(null);
-			return result!;
+	private async getGroupedTasks(type?: string, providerManager?: TaskProviderManager): Promise<TaskMap> {
+		await Promise.all([this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask'), this.extensionService.whenInstalledExtensionsRegistered()]);
+		if (!providerManager) {
+			providerManager = this.createProviderManager();
 		}
-		for (let task of workspaceTasks.tasks) {
-			if (CustomTask.is(task)) {
-				let commandName = task.command && task.command.name;
-				// This is for backwards compatibility with the 0.1.0 task annotation code
-				// if we had a gulp, jake or grunt command a task specification was a annotation
-				if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
-					let identifier = NKeyedTaskIdentifier.create({
-						type: commandName,
-						task: task.configurationProperties.name
-					});
-					getResult()[identifier._key] = task;
-				}
-			}
-		}
-		return result;
+		await providerManager.setWorkspaceTasks(await this.getWorkspaceTasks());
+
+
+		await providerManager.getProviderTasks(type);
+		return providerManager.result();
 	}
 
 	public getWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
@@ -2078,7 +1802,39 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return entries;
 		});
+		return this.quickInputService.pick(pickEntries, {
+			placeHolder,
+			matchOnDescription: true,
+			onDidTriggerItemButton: context => {
+				let task = context.item.task;
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
+					this.customize(task, undefined, true);
+				} else if (CustomTask.is(task)) {
+					this.openConfig(task);
+				}
+			}
+		}, cancellationToken).then(async (selection) => {
+			if (cancellationToken.isCancellationRequested) {
+				// canceled when there's only one task
+				const task = (await pickEntries)[0];
+				if ((<any>task).task) {
+					selection = <TaskQuickPickEntry>task;
+				}
+			}
+			if (!selection) {
+				return;
+			}
+			return selection;
+		});
+	}
 
+	private progressPickerDescription(providerManager: TaskProviderManager) {
+		return nls.localize('pickProgressManager.description', 'Detecting tasks ({0} of {1}): {2} in progress',
+			providerManager.totalProviders - providerManager.stillProviding.size, providerManager.totalProviders, Array.from(providerManager.stillProviding).join(', '));
+	}
+
+	private async showStreamingQuickPick(providerManager: TaskProviderManager, placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
 		const picker: IQuickPick<TaskQuickPickEntry> = this.quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
 		picker.matchOnDescription = true;
@@ -2093,48 +1849,71 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this.openConfig(task);
 			}
 		});
-		picker.busy = true;
-		const progressManager = this._providerProgressManager;
-		const progressTimeout = setTimeout(() => {
-			if (progressManager) {
-				progressManager.showProgress = (stillProviding, total) => {
-					let message = undefined;
-					if (stillProviding.length > 0) {
-						message = nls.localize('pickProgressManager.description', 'Detecting tasks ({0} of {1}): {2} in progress', total - stillProviding.length, total, stillProviding.join(', '));
-					}
-					picker.description = message;
-				};
-				progressManager.addOnDoneListener(() => {
-					picker.focusOnInput();
-					picker.customButton = false;
-				});
-				if (!progressManager.isDone) {
-					picker.customLabel = nls.localize('taskQuickPick.cancel', "Stop detecting");
-					picker.onDidCustom(() => {
-						this._providerProgressManager?.cancel();
-					});
-					picker.customButton = true;
-				}
-			}
-		}, 1000);
-		pickEntries.then(entries => {
-			clearTimeout(progressTimeout);
-			progressManager?.dispose();
-			picker.busy = false;
-			picker.items = entries;
-		});
 		picker.show();
+
+		if (providerManager.isDone) {
+			picker.items = this.createTaskQuickPickEntries(providerManager.allTasks!, group, sort, selectedEntry);
+		} else { // stream
+			picker.busy = true;
+			// TODO: Start with recently used
+			const workspaceTasksPromise = providerManager.setWorkspaceTasks(await this.getWorkspaceTasks());
+			let progressTimout: boolean = false;
+			const progressTimer = setTimeout(async () => {
+				clearTimeout(progressTimer);
+				if (!providerManager.isDone) {
+					picker.description = this.progressPickerDescription(providerManager);
+				}
+				progressTimout = true;
+			}, 1000);
+			providerManager.onDone(() => {
+				picker.description = '';
+				picker.busy = false;
+				picker.customButton = false;
+			});
+
+			const checkForOneTaskTimeout: boolean = await new Promise<boolean>((resolve) => {
+				const timer = setTimeout(() => {
+					clearTimeout(timer);
+					resolve(true);
+				}, 200);
+			});
+
+			if (!checkForOneTaskTimeout && providerManager.isDone && (picker.items.length === 1) && this.configurationService.getValue<boolean>(QUICKOPEN_SKIP_CONFIG)) {
+				return (<TaskQuickPickEntry>picker.items[0]);
+			}
+
+			let firstProvider: boolean = true;
+			if (await workspaceTasksPromise) {
+				picker.items = this.createTaskQuickPickEntries(providerManager.workspaceTasksMap.all(), group, sort, selectedEntry);
+				providerManager.onSingleProvider(async (taskMap) => {
+					const all = taskMap.all();
+					picker.items = picker.items.concat(this.createTaskQuickPickEntries(all, firstProvider && group, sort, selectedEntry));
+					firstProvider = firstProvider && all.length === 0;
+					if (progressTimout) {
+						picker.description = this.progressPickerDescription(providerManager);
+					}
+				});
+				providerManager.getProviderTasks();
+			} else {
+				// In this case, we cannot stream tasks into the quick pick and must put them all in when they are done
+				// Show the button so that the user can cancel and see the tasks immediately.
+				picker.customLabel = nls.localize('taskQuickPick.cancel', "Stop detecting");
+				picker.onDidCustom(() => {
+					providerManager?.cancel();
+				});
+				picker.customButton = true;
+				providerManager.onSingleProvider(taskMap => {
+					picker.description = this.progressPickerDescription(providerManager);
+				});
+				providerManager.getProviderTasks();
+				picker.items = this.createTaskQuickPickEntries((await providerManager.result()).all(), group, sort, selectedEntry);
+			}
+		}
 
 		return new Promise<TaskQuickPickEntry | undefined | null>(resolve => {
 			this._register(picker.onDidAccept(async () => {
+				providerManager.cancel();
 				let selection = picker.selectedItems ? picker.selectedItems[0] : undefined;
-				if (cancellationToken.isCancellationRequested) {
-					// canceled when there's only one task
-					const task = (await pickEntries)[0];
-					if ((<any>task).task) {
-						selection = <TaskQuickPickEntry>task;
-					}
-				}
 				picker.dispose();
 				if (!selection) {
 					resolve();
@@ -2169,51 +1948,56 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this.canRunCommand()) {
 			return;
 		}
+		const providerManager = this.createProviderManager();
 		let identifier = this.getTaskIdentifier(arg);
 		if (identifier !== undefined) {
-			this.getGroupedTasks().then((grouped) => {
+			this.getGroupedTasks(undefined, providerManager).then((grouped) => {
 				let resolver = this.createResolver(grouped);
 				let folders = this.contextService.getWorkspace().folders;
 				for (let folder of folders) {
 					let task = resolver.resolve(folder.uri, identifier);
 					if (task) {
-						this.run(task).then(undefined, reason => {
+						this.run(task, undefined, undefined, providerManager).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 						return;
 					}
 				}
-				this.doRunTaskCommand(grouped.all());
+				this.doRunTaskCommand(providerManager);
 			}, () => {
-				this.doRunTaskCommand();
+				this.doRunTaskCommand(providerManager);
 			});
 		} else {
-			this.doRunTaskCommand();
+			this.doRunTaskCommand(providerManager);
 		}
 	}
 
-	private doRunTaskCommand(tasks?: Task[]): void {
+	private handleSelectedTaskEntry(entry: TaskQuickPickEntry | null | undefined, providerManager?: TaskProviderManager) {
+		let task: Task | undefined | null = entry ? entry.task : undefined;
+		if (task === undefined) {
+			return;
+		}
+		if (task === null) {
+			this.runConfigureTasks();
+		} else {
+			this.run(task, { attachProblemMatcher: true }, TaskRunSource.User, providerManager).then(undefined, reason => {
+				// eat the error, it has already been surfaced to the user and we don't care about it here
+			});
+		}
+	}
+
+	private doRunTaskCommand(providerManager?: TaskProviderManager): void {
 		this.showIgnoredFoldersMessage().then(() => {
-			this.showQuickPick(tasks ? tasks : this.tasks(),
+			if (!providerManager) {
+				providerManager = this.createProviderManager();
+			}
+			this.showStreamingQuickPick(providerManager,
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
 					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
 					task: null
 				},
-				true).
-				then((entry) => {
-					let task: Task | undefined | null = entry ? entry.task : undefined;
-					if (task === undefined) {
-						return;
-					}
-					if (task === null) {
-						this.runConfigureTasks();
-					} else {
-						this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
-						});
-					}
-				});
+				true).then(entry => this.handleSelectedTaskEntry(entry, providerManager));
 		});
 	}
 
