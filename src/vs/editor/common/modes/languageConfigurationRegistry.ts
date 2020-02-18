@@ -275,11 +275,10 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getWordDefinitions(): [LanguageId, RegExp][] {
-		const languages = this._entries.keys();
 		let result: [LanguageId, RegExp][] = [];
-		for (const language of languages) {
-			result.push([language, this._entries.get(language)!.wordDefinition]);
-		}
+		this._entries.forEach((value: RichEditSupport | undefined, language: LanguageId, languages) => {
+			result.push([language, value!.wordDefinition]);
+		});
 		return result;
 	}
 
