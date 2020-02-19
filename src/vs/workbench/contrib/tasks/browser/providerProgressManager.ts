@@ -74,7 +74,6 @@ export class TaskProviderManager extends Disposable {
 	private _isDone: boolean = false;
 	private _startedProviding: boolean = false;
 	public onDone: Event<void> = this._onDone.event;
-	private _workspaceTasks: Map<string, WorkspaceFolderTaskResult> | undefined = undefined;
 	private _workspaceTaskMap: TaskMap = new TaskMap();
 	private _customTasksKeyValuePairs: [string, WorkspaceFolderTaskResult][] | undefined;
 	private _result: TaskMap = new TaskMap();
@@ -230,14 +229,14 @@ export class TaskProviderManager extends Disposable {
 		});
 	}
 
-	public async startProviding(workspaceTasks: Map<string, WorkspaceFolderTaskResult>) {
-		await this.setWorkspaceTasks(workspaceTasks);
+	public async startProviding(recentTasks: Map<string, WorkspaceFolderTaskResult>, workspaceTasks: Map<string, WorkspaceFolderTaskResult>) {
+		await this.setWorkspaceTasks(recentTasks, workspaceTasks);
 		this.getProviderTasks();
 	}
 
-	public async setWorkspaceTasks(workspaceTasks: Map<string, WorkspaceFolderTaskResult>): Promise<boolean> {
-		this._workspaceTasks = workspaceTasks;
-		this._customTasksKeyValuePairs = Array.from(this._workspaceTasks);
+	public async setWorkspaceTasks(recentTasks: Map<string, WorkspaceFolderTaskResult>, workspaceTasks: Map<string, WorkspaceFolderTaskResult>): Promise<boolean> {
+		// TODO: Merge recent and workspace better.
+		this._customTasksKeyValuePairs = Array.from(recentTasks).concat(Array.from(workspaceTasks));
 		for (const [key, folderTasks] of this._customTasksKeyValuePairs) {
 			if (folderTasks.set) {
 				this.addToSingleAndResult(this._workspaceTaskMap, key, ...folderTasks.set.tasks);
