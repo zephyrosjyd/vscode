@@ -13,7 +13,6 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledTextResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputFactory, Extensions as EditorExtensions, ISaveOptions, IMoveResult } from 'vs/workbench/common/editor';
 import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import Severity from 'vs/base/common/severity';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
@@ -45,7 +44,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, IModelDecorationOptions, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IShowResult, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -90,7 +89,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -99,6 +98,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 
 export import TestTextResourcePropertiesService = CommonWorkbenchTestServices.TestTextResourcePropertiesService;
 export import TestContextService = CommonWorkbenchTestServices.TestContextService;
@@ -260,7 +260,7 @@ export class TestProgressService implements IProgressService {
 		task: (progress: IProgress<IProgressStep>) => Promise<any>,
 		onDidCancel?: ((choice?: number | undefined) => void) | undefined
 	): Promise<any> {
-		return task(emptyProgress);
+		return task(Progress.None);
 	}
 }
 
@@ -322,14 +322,7 @@ export class TestHistoryService implements IHistoryService {
 	openLastEditLocation(): void { }
 }
 
-export class TestDialogService implements IDialogService {
 
-	_serviceBrand: undefined;
-
-	confirm(_confirmation: IConfirmation): Promise<IConfirmationResult> { return Promise.resolve({ confirmed: false }); }
-	show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> { return Promise.resolve({ choice: 0 }); }
-	about(): Promise<void> { return Promise.resolve(); }
-}
 
 export class TestFileDialogService implements IFileDialogService {
 

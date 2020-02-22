@@ -23,6 +23,7 @@ import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workb
 import { isMacintosh } from 'vs/base/common/platform';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -48,9 +49,10 @@ export class StartView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
-		@IStorageService storageSevice: IStorageService
+		@IStorageService storageSevice: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService);
+		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: localize('debugStart', "Debug Start Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
 		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
@@ -84,13 +86,14 @@ export class StartView extends ViewPane {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
 			content: localize('openAFileWhichCanBeDebugged', "[Open a file](command:{0}) which can be debugged or run.", isMacintosh ? OpenFileFolderAction.ID : OpenFileAction.ID),
-			when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR
+			when: CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()
 		});
 
 		const debugKeybinding = this.keybindingService.lookupKeybinding(StartAction.ID);
 		const debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
 		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
-			content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID)
+			content: localize('runAndDebugAction', "[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
+			preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
 		});
 
 		viewsRegistry.registerViewWelcomeContent(StartView.ID, {
