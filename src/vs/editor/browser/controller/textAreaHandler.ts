@@ -447,14 +447,19 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	public setAriaOptions(options: IEditorAriaOptions): void {
-		if (options.activeDescendant) {
+		if (typeof options.activeDescendant === 'string') {
 			this.textArea.setAttribute('aria-haspopup', 'true');
 			this.textArea.setAttribute('aria-autocomplete', 'list');
 			this.textArea.setAttribute('aria-activedescendant', options.activeDescendant);
-		} else {
+		} else if (options.activeDescendant === null) {
 			this.textArea.setAttribute('aria-haspopup', 'false');
 			this.textArea.setAttribute('aria-autocomplete', 'both');
 			this.textArea.removeAttribute('aria-activedescendant');
+		}
+		if (typeof options.ariaLabel === 'string') {
+			this.textArea.setAttribute('aria-label', options.ariaLabel);
+		} else if (options.ariaLabel === null) {
+			this.textArea.setAttribute('aria-label', this._getAriaLabel(this._context.configuration.options));
 		}
 	}
 

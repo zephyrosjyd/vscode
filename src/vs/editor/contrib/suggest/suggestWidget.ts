@@ -750,7 +750,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.focusedItem = null;
 			}
 
-			this.editor.setAriaOptions({ activeDescendant: undefined });
+			this.editor.setAriaOptions({ activeDescendant: null, ariaLabel: '' });
+			setTimeout(() => this.editor.setAriaOptions({ ariaLabel: null }), 1000);
 			return;
 		}
 
