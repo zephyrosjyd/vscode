@@ -17,7 +17,7 @@ export interface IProgressService {
 
 	_serviceBrand: undefined;
 
-	withProgress<R = any>(
+	withProgress<R>(
 		options: IProgressOptions | IProgressNotificationOptions | IProgressWindowOptions | IProgressCompositeOptions,
 		task: (progress: IProgress<IProgressStep>) => Promise<R>,
 		onDidCancel?: (choice?: number) => void
@@ -36,7 +36,7 @@ export interface IProgressIndicator {
 	 * Indicate progress for the duration of the provided promise. Progress will stop in
 	 * any case of promise completion, error or cancellation.
 	 */
-	showWhile(promise: Promise<any>, delay?: number): Promise<void>;
+	showWhile(promise: Promise<unknown>, delay?: number): Promise<void>;
 }
 
 export const enum ProgressLocation {
@@ -86,8 +86,6 @@ export interface IProgressRunner {
 	done(): void;
 }
 
-export const emptyProgress: IProgress<IProgressStep> = { report: () => { } };
-
 export const emptyProgressRunner: IProgressRunner = Object.freeze({
 	total() { },
 	worked() { },
@@ -99,6 +97,8 @@ export interface IProgress<T> {
 }
 
 export class Progress<T> implements IProgress<T> {
+
+	static readonly None: IProgress<unknown> = Object.freeze({ report() { } });
 
 	private _value?: T;
 	get value(): T | undefined { return this._value; }

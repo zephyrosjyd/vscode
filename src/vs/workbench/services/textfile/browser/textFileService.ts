@@ -6,17 +6,16 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { AsyncEmitter } from 'vs/base/common/event';
-import { IResult, ITextFileOperationResult, ITextFileService, ITextFileStreamContent, ITextFileEditorModel, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, TextFileCreateEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, TextFileCreateEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, FileOperation } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -31,10 +30,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { coalesce } from 'vs/base/common/arrays';
 import { suggestFilename } from 'vs/base/common/mime';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { isValidBasename } from 'vs/base/common/extpath';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -44,9 +43,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	_serviceBrand: undefined;
 
 	//#region events
-
-	private _onWillCreateTextFile = this._register(new AsyncEmitter<TextFileCreateEvent>());
-	readonly onWillCreateTextFile = this._onWillCreateTextFile.event;
 
 	private _onDidCreateTextFile = this._register(new AsyncEmitter<TextFileCreateEvent>());
 	readonly onDidCreateTextFile = this._onDidCreateTextFile.event;
@@ -72,7 +68,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService
+		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService
 	) {
 		super();
 
@@ -143,8 +140,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	async create(resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
-		// before event
-		await this._onWillCreateTextFile.fireAsync({ resource }, CancellationToken.None);
+		// file operation participation
+		await this.workingCopyFileService.runFileOperationParticipants(resource, undefined, FileOperation.CREATE);
 
 		// create file on disk
 		const stat = await this.doCreate(resource, value, options);
@@ -206,27 +203,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		else {
 			const model = this.files.get(resource);
 			if (model) {
-
-				// Save with options
-				await model.save(options);
-
-				return !model.isDirty() ? resource : undefined;
+				return await model.save(options) ? resource : undefined;
 			}
 		}
 
 		return undefined;
-	}
-
-	private getFileModels(resources?: URI[]): ITextFileEditorModel[] {
-		if (Array.isArray(resources)) {
-			return coalesce(resources.map(resource => this.files.get(resource)));
-		}
-
-		return this.files.getAll();
-	}
-
-	private getDirtyFileModels(resources?: URI[]): ITextFileEditorModel[] {
-		return this.getFileModels(resources).filter(model => model.isDirty());
 	}
 
 	async saveAs(source: URI, target?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
@@ -396,9 +377,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// save model
-		await targetModel.save(options);
-
-		return true;
+		return await targetModel.save(options);
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {
@@ -463,7 +442,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	//#region revert
 
-	async revert(resource: URI, options?: IRevertOptions): Promise<boolean> {
+	async revert(resource: URI, options?: IRevertOptions): Promise<void> {
 
 		// Untitled
 		if (resource.scheme === Schemas.untitled) {
@@ -471,39 +450,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			if (model) {
 				return model.revert(options);
 			}
-
-			return false;
 		}
 
 		// File
-		return !(await this.doRevertFiles([resource], options)).results.some(result => result.error);
-	}
-
-	private async doRevertFiles(resources: URI[], options?: IRevertOptions): Promise<ITextFileOperationResult> {
-		const fileModels = options?.force ? this.getFileModels(resources) : this.getDirtyFileModels(resources);
-
-		const mapResourceToResult = new ResourceMap<IResult>();
-		fileModels.forEach(fileModel => {
-			mapResourceToResult.set(fileModel.resource, {
-				source: fileModel.resource
-			});
-		});
-
-		await Promise.all(fileModels.map(async model => {
-
-			// Revert through model
-			await model.revert(options);
-
-			// If model is still dirty, mark the resulting operation as error
-			if (model.isDirty()) {
-				const result = mapResourceToResult.get(model.resource);
-				if (result) {
-					result.error = true;
-				}
+		else {
+			const model = this.files.get(resource);
+			if (model && (model.isDirty() || options?.force)) {
+				return model.revert(options);
 			}
-		}));
-
-		return { results: mapResourceToResult.values() };
+		}
 	}
 
 	//#endregion

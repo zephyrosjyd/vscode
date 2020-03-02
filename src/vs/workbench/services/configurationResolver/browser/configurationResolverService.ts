@@ -259,6 +259,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (info.default) {
 						inputOptions.value = info.default;
 					}
+					if (info.password) {
+						inputOptions.password = info.password;
+					}
 					return this.quickInputService.input(inputOptions).then(resolvedInput => {
 						return resolvedInput;
 					});
@@ -337,7 +340,7 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService
 	) {
-		super(environmentService.configuration.userEnv, editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
+		super(Object.create(null), editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
 	}
 }
 
