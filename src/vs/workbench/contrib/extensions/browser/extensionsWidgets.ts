@@ -327,24 +327,17 @@ export class ActivationStatusWidget extends ExtensionWidget {
 	) {
 		super();
 		this.element = append(parent, $('span.activated'));
-		this._register(Event.any(extensionService.onDidChangeExtensions, extensionService.onDidChangeExtensionsStatus)(() => this.render()));
+		this._register(extensionService.onDidChangeExtensionsStatus(() => this.render()));
 		this._register(toDisposable(() => this.clear()));
 		this.render();
 	}
 
-	async render(): Promise<void> {
+	render(): void {
 		this.clear();
 		if (!this.extension) {
 			return;
 		}
-		const extension = await this.extensionService.getExtension(this.extension.identifier.id);
-		if (!extension) {
-			return;
-		}
-		if (this.extension.version !== extension.version) {
-			return;
-		}
-		const { activationTimes } = this.extensionService.getExtensionsStatus()[extension.identifier.value];
+		const { activationTimes } = this.extensionService.getExtensionsStatus()[this.extension.identifier.id];
 		if (!activationTimes) {
 			return;
 		}
