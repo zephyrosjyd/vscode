@@ -257,7 +257,9 @@ export class RawDebugSession implements IDisposable {
 	//---- DAP requests
 
 	async launchOrAttach(config: IConfig): Promise<DebugProtocol.Response> {
+		console.log('sending LAUNCH');
 		const response = await this.send(config.request, config);
+		console.log(response);
 		this.mergeCapabilities(response.body);
 
 		return response;
@@ -605,7 +607,9 @@ export class RawDebugSession implements IDisposable {
 				return;
 			}
 			let cancelationListener: IDisposable;
+			console.log('sending ' + command);
 			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
+				console.log('got reponse for ' + command);
 				if (cancelationListener) {
 					cancelationListener.dispose();
 				}
@@ -619,6 +623,7 @@ export class RawDebugSession implements IDisposable {
 
 			if (token) {
 				cancelationListener = token.onCancellationRequested(() => {
+					console.log('I GOT CANCELED ' + command);
 					cancelationListener.dispose();
 					if (this.capabilities.supportsCancelRequest) {
 						this.cancel({ requestId });
