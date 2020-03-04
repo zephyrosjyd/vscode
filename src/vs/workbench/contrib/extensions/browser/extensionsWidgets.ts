@@ -6,7 +6,7 @@
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $, addClass } from 'vs/base/browser/dom';
+import { append, $, addClass, removeClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -16,6 +16,7 @@ import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeServic
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -313,5 +314,47 @@ class RemoteBadge extends Disposable {
 			this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
 			updateTitle();
 		}
+	}
+}
+
+export class ActivationStatusWidget extends ExtensionWidget {
+
+	private element: HTMLElement;
+
+	constructor(
+		parent: HTMLElement,
+		@IExtensionService private readonly extensionService: IExtensionService,
+	) {
+		super();
+		this.element = append(parent, $('span.activated'));
+		this._register(Event.any(extensionService.onDidChangeExtensions, extensionService.onDidChangeExtensionsStatus)(() => this.render()));
+		this._register(toDisposable(() => this.clear()));
+		this.render();
+	}
+
+	async render(): Promise<void> {
+		this.clear();
+		if (!this.extension) {
+			return;
+		}
+		const extension = await this.extensionService.getExtension(this.extension.identifier.id);
+		if (!extension) {
+			return;
+		}
+		if (this.extension.version !== extension.version) {
+			return;
+		}
+		const { activationTimes } = this.extensionService.getExtensionsStatus()[extension.identifier.value];
+		if (!activationTimes) {
+			return;
+		}
+		addClass(this.element, 'show');
+		const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
+		this.element.title = localize('activated', "Activated ({0}ms)", syncTime);
+	}
+
+	private clear(): void {
+		removeClass(this.element, 'show');
+		this.element.title = '';
 	}
 }

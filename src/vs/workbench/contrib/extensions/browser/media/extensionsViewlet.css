@@ -137,10 +137,6 @@
 	color: currentColor;
 }
 
-.extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header > .extension-remote-badge-container {
-	margin-left: 6px;
-}
-
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge {
 	width: 14px;
 	height: 14px;
@@ -150,6 +146,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	margin-left: 6px;
 }
 
 .extensions-viewlet > .extensions .monaco-list-row > .extension > .details > .header-container > .header .extension-remote-badge > .codicon {
@@ -199,7 +196,7 @@
 	min-width: -moz-fit-content;
 }
 
-.extensions-viewlet:not(.narrow) > .extensions .extension > .details > .header-container > .header > .version {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
 	flex: 1;
 }
 
@@ -230,8 +227,21 @@
 
 .extensions-viewlet:not(.narrow) > .extensions .extension > .details > .header-container > .header > .extension-remote-badge-container,
 .extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .ratings,
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .activation-status > .activated:not(.show),
 .extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .install-count {
 	display: none;
+}
+
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .activation-status > .activated {
+	mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=") no-repeat;
+	-webkit-mask: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=") no-repeat;
+	width: 14px;
+	height: 14px;
+	vertical-align: text-top;
+	display: inline-block;
+	background-color: currentColor;
+	content: '';
+	margin-left: 4px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .description {
