@@ -337,13 +337,13 @@ export class ActivationStatusWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		const { activationTimes } = this.extensionService.getExtensionsStatus()[this.extension.identifier.id];
-		if (!activationTimes) {
+		const extensionStatus = this.extensionService.getExtensionsStatus()[this.extension.identifier.id];
+		if (!extensionStatus?.activationTimes) {
 			return;
 		}
 		addClass(this.element, 'show');
-		const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-		this.element.title = localize('activated', "Activated ({0}ms)", syncTime);
+		const syncTime = extensionStatus.activationTimes.codeLoadingTime + extensionStatus.activationTimes.activateCallTime;
+		this.element.title = localize('activated', "Activation: {0}ms", syncTime);
 	}
 
 	private clear(): void {

@@ -241,7 +241,7 @@
 	display: inline-block;
 	background-color: currentColor;
 	content: '';
-	margin-left: 4px;
+	margin-left: 6px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .description {
