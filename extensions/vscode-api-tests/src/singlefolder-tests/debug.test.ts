@@ -74,15 +74,19 @@ suite('Debug', function () {
 		const success = await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
 		assert.equal(success, true);
 		await initializedPromise;
+		console.log('initializedPromise');
 		await configurationDonePromise;
-
+		console.log('configurationDonePromise');
 		await firstVariablesRetrieved;
+		console.log('firstVariablesRetrieved');
 		assert.notEqual(debug.activeDebugSession, undefined);
 		assert.equal(stoppedEvents, 1);
 
 		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
 		await commands.executeCommand('workbench.action.debug.stepOver');
+		console.log('stepOver');
 		await secondVariablesRetrieved;
+		console.log('secondVariablesRetrieved');
 		assert.equal(stoppedEvents, 2);
 		const editor = window.activeTextEditor;
 		assert.notEqual(editor, undefined);
@@ -90,17 +94,23 @@ suite('Debug', function () {
 
 		const thirdVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
 		await commands.executeCommand('workbench.action.debug.stepOver');
+		console.log('stepOver');
 		await thirdVariablesRetrieved;
+		console.log('thirdVariablesRetrieved');
 		assert.equal(stoppedEvents, 3);
 
 		const fourthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
 		await commands.executeCommand('workbench.action.debug.stepInto');
+		console.log('stepInto');
 		await fourthVariablesRetrieved;
+		console.log('fourthVariablesRetrieved');
 		assert.equal(stoppedEvents, 4);
 
 		const fifthVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
 		await commands.executeCommand('workbench.action.debug.stepOut');
+		console.log('stepOut');
 		await fifthVariablesRetrieved;
+		console.log('fifthVariablesRetrieved');
 		assert.equal(stoppedEvents, 5);
 
 		let sessionTerminated: () => void;
@@ -109,7 +119,9 @@ suite('Debug', function () {
 		}));
 		const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
 		await commands.executeCommand('workbench.action.debug.stop');
+		console.log('stop');
 		await sessionTerminatedPromise;
+		console.log('sessionTerminatedPromise');
 		disposeAll(toDispose);
 	});
 
