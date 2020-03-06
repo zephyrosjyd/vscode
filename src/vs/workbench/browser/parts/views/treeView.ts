@@ -7,7 +7,7 @@ import 'vs/css!./media/views';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/actions';
+import { IAction, ActionRunner, Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -50,7 +50,6 @@ export class TreeViewPane extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -68,6 +67,7 @@ export class TreeViewPane extends ViewPane {
 		this._register(this.treeView.onDidChangeTitle((newTitle) => this.updateTitle(newTitle)));
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
+		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
 		this.updateTreeVisibility();
 	}
 
@@ -84,6 +84,10 @@ export class TreeViewPane extends ViewPane {
 		}
 	}
 
+	shouldShowWelcome(): boolean {
+		return (this.treeView.dataProvider === undefined) && (this.treeView.message === undefined);
+	}
+
 	layoutBody(height: number, width: number): void {
 		this.treeView.layout(height, width);
 	}
@@ -94,10 +98,6 @@ export class TreeViewPane extends ViewPane {
 
 	getSecondaryActions(): IAction[] {
 		return [...super.getSecondaryActions(), ...this.treeView.getSecondaryActions()];
-	}
-
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return action instanceof MenuItemAction ? new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService) : undefined;
 	}
 
 	getOptimalWidth(): number {
@@ -155,6 +155,9 @@ export class TreeView extends Disposable implements ITreeView {
 
 	private readonly _onDidChangeActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeActions: Event<void> = this._onDidChangeActions.event;
+
+	private readonly _onDidChangeWelcomeState: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeWelcomeState: Event<void> = this._onDidChangeWelcomeState.event;
 
 	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
@@ -227,6 +230,8 @@ export class TreeView extends Disposable implements ITreeView {
 			this._dataProvider = undefined;
 			this.updateMessage();
 		}
+
+		this._onDidChangeWelcomeState.fire();
 	}
 
 	private _message: string | undefined;
@@ -237,6 +242,7 @@ export class TreeView extends Disposable implements ITreeView {
 	set message(message: string | undefined) {
 		this._message = message;
 		this.updateMessage();
+		this._onDidChangeWelcomeState.fire();
 	}
 
 	get title(): string {
