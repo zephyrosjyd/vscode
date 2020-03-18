@@ -15,6 +15,8 @@ export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
 }
 
+export const TimelinePaneId = 'timeline';
+
 export interface TimelineItem {
 	handle: string;
 	source: string;
@@ -67,6 +69,11 @@ export interface TimelineProvider extends TimelineProviderDescriptor, IDisposabl
 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
 }
 
+export interface TimelineSource {
+	id: string;
+	label: string;
+}
+
 export interface TimelineProviderDescriptor {
 	id: string;
 	label: string;
@@ -91,17 +98,16 @@ export interface ITimelineService {
 
 	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
 	onDidChangeTimeline: Event<TimelineChangeEvent>;
-	onDidReset: Event<void>;
+	onDidChangeUri: Event<URI>;
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;
 
-	getSources(): string[];
+	getSources(): TimelineSource[];
 
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
 
-	// refresh(fetch?: 'all' | 'more'): void;
-	reset(): void;
+	setUri(uri: URI): void;
 }
 
 const TIMELINE_SERVICE_ID = 'timeline';

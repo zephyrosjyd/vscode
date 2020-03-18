@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Event } from 'vs/base/common/event';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -11,7 +12,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestEditorService, TestContextService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -21,10 +22,11 @@ import * as Types from 'vs/base/common/types';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
-	get activeTextEditorWidget(): any {
+	get activeTextEditorControl(): any {
 		return {
 			getEditorType() {
 				return EditorType.ICodeEditor;
@@ -530,6 +532,11 @@ class MockCommandService implements ICommandService {
 class MockQuickInputService implements IQuickInputService {
 	_serviceBrand: undefined;
 
+	readonly onShow = Event.None;
+	readonly onHide = Event.None;
+
+	readonly quickAccess = undefined!;
+
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
 	public pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>, token?: CancellationToken): Promise<T | undefined> {
@@ -575,6 +582,10 @@ class MockQuickInputService implements IQuickInputService {
 	}
 
 	cancel(): Promise<void> {
+		throw new Error('not implemented.');
+	}
+
+	hide(): void {
 		throw new Error('not implemented.');
 	}
 }
@@ -623,6 +634,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWindowConfiguration, userEnv }, TestWindowConfiguration.execPath, TestWindowConfiguration.windowId);
+		super({ ...TestWindowConfiguration, userEnv }, TestWindowConfiguration.execPath);
 	}
 }
