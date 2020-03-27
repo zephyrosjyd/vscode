@@ -56,7 +56,7 @@ export interface ParsedArgs {
 	'open-url'?: boolean;
 	'skip-getting-started'?: boolean;
 	'skip-release-notes'?: boolean;
-	'sticky-quickopen'?: boolean;
+	'sticky-quickinput'?: boolean;
 	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
@@ -124,12 +124,11 @@ export interface IEnvironmentService extends IUserHomeProvider {
 	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
+	snippetsHome: URI;
 
 	// sync resources
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
-	settingsSyncPreviewResource: URI;
-	keybindingsSyncPreviewResource: URI;
 
 	machineSettingsResource: URI;
 

@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, equals } from 'vs/base/common/arrays';
+import { escapeCodicons } from 'vs/base/common/codicons';
 import { illegalArgument } from 'vs/base/common/errors';
+import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { startsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import type * as vscode from 'vscode';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { escapeCodicons } from 'vs/base/common/codicons';
+import type * as vscode from 'vscode';
+import { Cache } from './cache';
+import { assertIsDefined } from 'vs/base/common/types';
+import { Schemas } from 'vs/base/common/network';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-ignore
@@ -1348,7 +1352,9 @@ export enum CompletionItemKind {
 	Struct = 21,
 	Event = 22,
 	Operator = 23,
-	TypeParameter = 24
+	TypeParameter = 24,
+	User = 25,
+	Issue = 26
 }
 
 export enum CompletionItemTag {
@@ -1357,7 +1363,7 @@ export enum CompletionItemTag {
 
 export interface CompletionItemLabel {
 	name: string;
-	signature?: string;
+	parameters?: string;
 	qualifier?: string;
 	type?: string;
 }
@@ -2536,13 +2542,6 @@ export class Decoration {
 	bubble?: boolean;
 }
 
-export enum WebviewContentState {
-	Readonly = 1,
-	Unchanged = 2,
-	Dirty = 3,
-}
-
-
 //#region Theming
 
 @es5ClassCompat
@@ -2559,6 +2558,21 @@ export enum ColorThemeKind {
 
 //#endregion Theming
 
+//#region Notebook
+
+export enum CellKind {
+	Markdown = 1,
+	Code = 2
+}
+
+export enum CellOutputKind {
+	Text = 1,
+	Error = 2,
+	Rich = 3
+}
+
+//#endregion
+
 //#region Timeline
 
 @es5ClassCompat
@@ -2567,3 +2581,98 @@ export class TimelineItem implements vscode.TimelineItem {
 }
 
 //#endregion Timeline
+
+//#region Custom Editors
+
+interface EditState {
+	readonly allEdits: readonly number[];
+	readonly currentIndex: number;
+	readonly saveIndex: number;
+}
+
+export class CustomDocument<EditType = unknown> implements vscode.CustomDocument<EditType> {
+
+	readonly #edits = new Cache<EditType>('edits');
+
+	readonly #viewType: string;
+	readonly #uri: vscode.Uri;
+
+	#editState: EditState = {
+		allEdits: [],
+		currentIndex: -1,
+		saveIndex: -1,
+	};
+	#isDisposed = false;
+	#version = 1;
+
+	constructor(viewType: string, uri: vscode.Uri) {
+		this.#viewType = viewType;
+		this.#uri = uri;
+	}
+
+	//#region Public API
+
+	public get viewType(): string { return this.#viewType; }
+
+	public get uri(): vscode.Uri { return this.#uri; }
+
+	public get fileName(): string { return this.uri.fsPath; }
+
+	public get isUntitled() { return this.uri.scheme === Schemas.untitled; }
+
+	#onDidDispose = new Emitter<void>();
+	public readonly onDidDispose = this.#onDidDispose.event;
+
+	public get isClosed() { return this.#isDisposed; }
+
+	public get version() { return this.#version; }
+
+	public get isDirty() {
+		return this.#editState.currentIndex !== this.#editState.saveIndex;
+	}
+
+	public get appliedEdits() {
+		return this.#editState.allEdits.slice(0, this.#editState.currentIndex + 1)
+			.map(id => this._getEdit(id));
+	}
+
+	public get savedEdits() {
+		return this.#editState.allEdits.slice(0, this.#editState.saveIndex + 1)
+			.map(id => this._getEdit(id));
+	}
+
+	//#endregion
+
+	/** @internal */ _dispose(): void {
+		this.#isDisposed = true;
+		this.#onDidDispose.fire();
+		this.#onDidDispose.dispose();
+	}
+
+	/** @internal */ _updateEditState(state: EditState) {
+		++this.#version;
+		this.#editState = state;
+	}
+
+	/** @internal*/ _getEdit(editId: number): EditType {
+		return assertIsDefined(this.#edits.get(editId, 0));
+	}
+
+	/** @internal*/ _disposeEdits(editIds: number[]) {
+		for (const editId of editIds) {
+			this.#edits.delete(editId);
+		}
+	}
+
+	/** @internal*/ _addEdit(edit: EditType): number {
+		const id = this.#edits.add([edit]);
+		this.#editState = {
+			allEdits: [...this.#editState.allEdits.slice(0, this.#editState.currentIndex), id],
+			currentIndex: this.#editState.currentIndex + 1,
+			saveIndex: this.#editState.saveIndex,
+		};
+		return id;
+	}
+}
+
+// #endregion
