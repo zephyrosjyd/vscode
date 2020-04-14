@@ -520,7 +520,7 @@ gulp.task(task.define(
 			if (!fs.existsSync(allConfigDetailsPath)) {
 				console.log(`does not exist`);
 			}
-			await new Promise(resolve => setTimeout(resolve, 500));
+			await new Promise(resolve => setTimeout(resolve, 30000));
 			if (!fs.existsSync(allConfigDetailsPath)) {
 				throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
 			}
