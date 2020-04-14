@@ -494,13 +494,32 @@ gulp.task(task.define(
 	task.series(
 		generateVSCodeConfigurationTask,
 		async () => {
-			if (!shouldSetupSettingsSearch()) {
-				const branch = process.env.BUILD_SOURCEBRANCH;
-				console.log(`Only runs on master and release branches, not ${branch}`);
-				return;
-			}
+			// if (!shouldSetupSettingsSearch()) {
+			// 	const branch = process.env.BUILD_SOURCEBRANCH;
+			// 	console.log(`Only runs on master and release branches, not ${branch}`);
+			// 	return;
+			// }
 
 			// Sometimes the file is claimed to not exist for a few milliseconds after the vscode process exits
+			if (!fs.existsSync(allConfigDetailsPath)) {
+				console.log(`does not exist`);
+			}
+			await new Promise(resolve => setTimeout(resolve, 500));
+			if (!fs.existsSync(allConfigDetailsPath)) {
+				console.log(`does not exist`);
+			}
+			await new Promise(resolve => setTimeout(resolve, 500));
+			if (!fs.existsSync(allConfigDetailsPath)) {
+				console.log(`does not exist`);
+			}
+			await new Promise(resolve => setTimeout(resolve, 500));
+			if (!fs.existsSync(allConfigDetailsPath)) {
+				console.log(`does not exist`);
+			}
+			await new Promise(resolve => setTimeout(resolve, 500));
+			if (!fs.existsSync(allConfigDetailsPath)) {
+				console.log(`does not exist`);
+			}
 			await new Promise(resolve => setTimeout(resolve, 500));
 			if (!fs.existsSync(allConfigDetailsPath)) {
 				throw new Error(`configuration file at ${allConfigDetailsPath} does not exist`);
