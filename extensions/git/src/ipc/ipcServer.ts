@@ -29,6 +29,8 @@ export interface IIPCHandler {
 
 export async function createIPCServer(): Promise<IIPCServer> {
 	const server = http.createServer();
+	server.setTimeout(0);
+
 	const buffer = await new Promise<Buffer>((c, e) => crypto.randomBytes(20, (err, buf) => err ? e(err) : c(buf)));
 	const nonce = buffer.toString('hex');
 	const ipcHandlePath = getIPCHandlePath(nonce);

@@ -14,6 +14,7 @@ import { GitContentProvider } from './contentProvider';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
+import { GitEditor } from './gitEditor';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { GitExtension } from './api/git';
@@ -50,9 +51,13 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	if (ipc) {
 		const askpass = new Askpass(ipc);
 		disposables.push(askpass);
-		env = { ...env, ...askpass.getEnv() };
+
+		const gitEditor = new GitEditor(ipc);
+		disposables.push(gitEditor);
+
+		env = { ...env, ...askpass.getEnv(), ...gitEditor.getEnv() };
 	} else {
-		env = { ...env, ...Askpass.getDisabledEnv() };
+		env = { ...env, ...Askpass.getDisabledEnv(), ...GitEditor.getDisabledEnv() };
 	}
 
 	const git = new Git({ gitPath: info.path, version: info.version, env });
