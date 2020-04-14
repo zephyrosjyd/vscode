@@ -1306,8 +1306,8 @@ export class Repository {
 		const args = ['commit', '--quiet'];
 		const options: SpawnOptions = {};
 
-		if (!opts.useEditor) {
-			options.input = message || '';
+		if (!opts.useEditor || message) {
+			options.input = message;
 			args.push(...['--allow-empty-message', '--file', '-']);
 		} else if (opts.verbose) {
 			args.push('--verbose');
