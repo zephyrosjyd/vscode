@@ -46,7 +46,7 @@ export class GitEditor implements IIPCHandler {
 			const position = new Position(0, 0);
 			editor.selection = new Selection(position, position);
 
-			return new Promise((c, e) => {
+			return new Promise((c) => {
 				const onDidChange = window.onDidChangeVisibleTextEditors((editors) => {
 					if (editors.indexOf(editor) < 0) {
 						onDidChange.dispose();
