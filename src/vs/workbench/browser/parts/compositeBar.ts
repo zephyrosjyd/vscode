@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
-import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
 
 export interface ICompositeBarItem {
 	id: string;
@@ -39,9 +39,10 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		private viewDescriptorService: IViewDescriptorService,
 		private targetContainerLocation: ViewContainerLocation,
 		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | undefined>,
-		private moveComposite: (from: string, to: string, before?: boolean) => void,
+		private moveComposite: (from: string, to: string, before?: Before2D) => void,
 	) { }
-	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent, before?: boolean): void {
+
+	drop(data: CompositeDragAndDropData, targetCompositeId: string, originalEvent: DragEvent, before?: Before2D): void {
 		const dragData = data.getData();
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 
@@ -49,57 +50,48 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			const currentContainer = viewContainerRegistry.get(dragData.id)!;
 			const currentLocation = viewContainerRegistry.getViewContainerLocation(currentContainer);
 
-			// Inserting a composite between composites
-			if (targetCompositeId) {
-				// ... on the same composite bar
-				if (currentLocation === this.targetContainerLocation) {
-					this.moveComposite(dragData.id, targetCompositeId, before);
+			// ... on the same composite bar
+			if (currentLocation === this.targetContainerLocation) {
+				this.moveComposite(dragData.id, targetCompositeId, before);
+			}
+			// ... on a different composite bar
+			else {
+				const viewsToMove = this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors;
+				if (viewsToMove.some(v => !v.canMoveView)) {
+					return;
 				}
-				// ... on a different composite bar
-				else {
-					const viewsToMove = this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors.filter(vd => vd.canMoveView);
-					if (viewsToMove.length === 1) {
-						this.viewDescriptorService.moveViewToLocation(viewsToMove[0], this.targetContainerLocation);
 
-						const newContainer = this.viewDescriptorService.getViewContainer(viewsToMove[0].id)!;
+				this.viewDescriptorService.moveViewToLocation(viewsToMove[0], this.targetContainerLocation);
+				const newContainer = this.viewDescriptorService.getViewContainer(viewsToMove[0].id)!;
+				this.moveComposite(newContainer.id, targetCompositeId, before);
 
-						this.moveComposite(newContainer.id, targetCompositeId, before);
+				if (viewsToMove.length > 1) {
+					this.viewDescriptorService.moveViewsToContainer(viewsToMove.slice(1), newContainer);
+				}
 
-						this.openComposite(newContainer.id, true).then(composite => {
-							if (composite && viewsToMove.length === 1) {
-								composite.openView(viewsToMove[0].id, true);
-							}
-						});
+				this.openComposite(newContainer.id, true).then(composite => {
+					if (composite && viewsToMove.length === 1) {
+						composite.openView(viewsToMove[0].id, true);
 					}
-				}
-			} else {
-				const draggedViews = this.viewDescriptorService.getViewDescriptors(currentContainer).allViewDescriptors;
-				if (draggedViews.length === 1 && draggedViews[0].canMoveView) {
-					dragData.type = 'view';
-					dragData.id = draggedViews[0].id;
-				}
+				});
 			}
 		}
 
 		if (dragData.type === 'view') {
-			if (targetCompositeId) {
-				const viewToMove = this.viewDescriptorService.getViewDescriptor(dragData.id)!;
+			const viewToMove = this.viewDescriptorService.getViewDescriptor(dragData.id)!;
 
-				if (viewToMove && viewToMove.canMoveView) {
-					this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation);
+			if (viewToMove && viewToMove.canMoveView) {
+				this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation);
 
-					const newContainer = this.viewDescriptorService.getViewContainer(viewToMove.id)!;
+				const newContainer = this.viewDescriptorService.getViewContainer(viewToMove.id)!;
 
-					this.moveComposite(newContainer.id, targetCompositeId, before);
+				this.moveComposite(newContainer.id, targetCompositeId, before);
 
-					this.openComposite(newContainer.id, true).then(composite => {
-						if (composite) {
-							composite.openView(viewToMove.id, true);
-						}
-					});
-				}
-			} else {
-
+				this.openComposite(newContainer.id, true).then(composite => {
+					if (composite) {
+						composite.openView(viewToMove.id, true);
+					}
+				});
 			}
 		}
 	}
@@ -128,12 +120,9 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 			// ... to another composite location
 			const draggedViews = this.viewDescriptorService.getViewDescriptors(currentContainer)!.allViewDescriptors;
-			if (draggedViews.length !== 1) {
-				return false;
-			}
 
-			// ... single view
-			return !!draggedViews[0].canMoveView;
+			// ... all views must be movable
+			return !draggedViews.some(v => !v.canMoveView);
 		} else {
 			// Dragging an individual view
 			const viewDescriptor = this.viewDescriptorService.getViewDescriptor(dragData.id);
@@ -150,6 +139,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 }
 
 export interface ICompositeBarOptions {
+
 	readonly icon: boolean;
 	readonly orientation: ActionsOrientation;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
@@ -169,6 +159,9 @@ export interface ICompositeBarOptions {
 
 export class CompositeBar extends Widget implements ICompositeBar {
 
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
 	private dimension: Dimension | undefined;
 
 	private compositeSwitcherBar: ActionBar | undefined;
@@ -179,12 +172,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	private visibleComposites: string[];
 	private compositeSizeInBar: Map<string, number>;
 
-	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
-
 	constructor(
 		items: ICompositeBarItem[],
-		private options: ICompositeBarOptions,
+		private readonly options: ICompositeBarOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
@@ -255,7 +245,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			},
 			onDrop: (e: IDraggedCompositeData) => {
 				const pinnedItems = this.getPinnedComposites();
-				this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, false);
+				this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, { horizontallyBefore: false, verticallyBefore: false });
 				toggleClass(parent, 'dragged-over', false);
 			}
 		}));

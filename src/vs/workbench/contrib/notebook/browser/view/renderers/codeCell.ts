@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
-import { IOutput, ITransformedDisplayOutputDto, IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellRenderTemplate, INotebookEditor, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { CellOutputKind, IOutput, IRenderOutput, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -27,7 +29,7 @@ export class CodeCell extends Disposable {
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
-		private templateData: CellRenderTemplate,
+		private templateData: CodeCellRenderTemplate,
 		@INotebookService private notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IModeService private readonly _modeService: IModeService
@@ -44,7 +46,7 @@ export class CodeCell extends Disposable {
 				height: totalHeight
 			}
 		);
-		viewCell.editorHeight = totalHeight;
+		// viewCell.editorHeight = totalHeight;
 
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
@@ -92,24 +94,26 @@ export class CodeCell extends Disposable {
 			templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
 		}));
 
-		let cellWidthResizeObserver = getResizesObserver(templateData.editorContainer!, {
-			width: width,
-			height: totalHeight
-		}, () => {
-			let newWidth = cellWidthResizeObserver.getWidth();
-			let realContentHeight = templateData.editor!.getContentHeight();
-			templateData.editor?.layout(
-				{
-					width: newWidth,
-					height: realContentHeight
-				}
-			);
+		this._register(viewCell.onDidChangeLayout((e) => {
+			if (e.outerWidth === undefined) {
+				return;
+			}
 
-			viewCell.editorHeight = realContentHeight;
-		});
+			const layoutInfo = templateData.editor!.getLayoutInfo();
+			const realContentHeight = templateData.editor!.getContentHeight();
 
-		cellWidthResizeObserver.startObserving();
-		this._register(cellWidthResizeObserver);
+			if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
+				templateData.editor?.layout(
+					{
+						width: viewCell.layoutInfo.editorWidth,
+						height: realContentHeight
+					}
+				);
+
+				viewCell.editorHeight = realContentHeight;
+				this.relayoutCell();
+			}
+		}));
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
@@ -130,7 +134,12 @@ export class CodeCell extends Disposable {
 			}
 		}));
 
-		this._register(templateData.editor!.onDidChangeCursorSelection(() => {
+		this._register(templateData.editor!.onDidChangeCursorSelection((e) => {
+			if (e.source === 'restoreState') {
+				// do not reveal the cell into view if this selection change was caused by restoring editors...
+				return;
+			}
+
 			const primarySelection = templateData.editor!.getSelection();
 
 			if (primarySelection) {
@@ -142,6 +151,8 @@ export class CodeCell extends Disposable {
 			if (!splices.length) {
 				return;
 			}
+
+			const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
 
 			if (this.viewCell.outputs.length) {
 				this.templateData.outputContainer!.style.display = 'block';
@@ -191,10 +202,22 @@ export class CodeCell extends Disposable {
 
 			let editorHeight = templateData.editor!.getContentHeight();
 			viewCell.editorHeight = editorHeight;
-			this.relayoutCell();
+
+			if (previousOutputHeight === 0 || this.viewCell.outputs.length === 0) {
+				// first execution or removing all outputs
+				this.relayoutCell();
+			} else {
+				this.relayoutCellDebounced();
+			}
 		}));
 
 		if (viewCell.outputs.length > 0) {
+			let layoutCache = false;
+			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.totalHeight > totalHeight) {
+				layoutCache = true;
+				this.relayoutCell();
+			}
+
 			this.templateData.outputContainer!.style.display = 'block';
 			// there are outputs, we need to calcualte their sizes and trigger relayout
 			// @todo, if there is no resizable output, we should not check their height individually, which hurts the performance
@@ -206,9 +229,15 @@ export class CodeCell extends Disposable {
 			}
 
 			viewCell.editorHeight = totalHeight;
-			this.relayoutCell();
+			if (layoutCache) {
+				this.relayoutCellDebounced();
+			} else {
+				this.relayoutCell();
+			}
 		} else {
 			// noop
+			viewCell.editorHeight = totalHeight;
+			this.relayoutCell();
 			this.templateData.outputContainer!.style.display = 'none';
 		}
 	}
@@ -228,12 +257,26 @@ export class CodeCell extends Disposable {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
 				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
+				mimeTypePicker.tabIndex = 0;
+				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype");
 				outputItemDiv.appendChild(mimeTypePicker);
 				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
-					e.preventDefault();
-					e.stopPropagation();
-					await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					if (e.leftButton) {
+						e.preventDefault();
+						e.stopPropagation();
+						await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					}
 				}));
+
+				this.outputResizeListeners.get(currOutput)!.add((DOM.addDisposableListener(mimeTypePicker, DOM.EventType.KEY_DOWN, async e => {
+					const event = new StandardKeyboardEvent(e);
+					if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+						e.preventDefault();
+						e.stopPropagation();
+						await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					}
+				})));
+
 			}
 			let pickedMimeTypeRenderer = currOutput.orderedMimeTypes[currOutput.pickedMimeTypeIndex];
 
@@ -314,7 +357,7 @@ export class CodeCell extends Disposable {
 
 	generateRendererInfo(renderId: number | undefined): string {
 		if (renderId === undefined || renderId === -1) {
-			return 'builtin';
+			return nls.localize('builtinRenderInfo', "built-in");
 		}
 
 		let renderInfo = this.notebookService.getRendererInfo(renderId);
@@ -323,7 +366,7 @@ export class CodeCell extends Disposable {
 			return renderInfo.id.value;
 		}
 
-		return 'builtin';
+		return nls.localize('builtinRenderInfo', "built-in");
 	}
 
 	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {
@@ -374,7 +417,21 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
+		if (this._timer !== null) {
+			clearTimeout(this._timer);
+		}
+
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	}
+
+	private _timer: any = null;
+
+	relayoutCellDebounced() {
+		clearTimeout(this._timer);
+		this._timer = setTimeout(() => {
+			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+			this._timer = null;
+		}, 500);
 	}
 
 	dispose() {

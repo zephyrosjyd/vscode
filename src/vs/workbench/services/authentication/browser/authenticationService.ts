@@ -51,7 +51,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			command: {
 				id: 'noAuthenticationProviders',
-				title: nls.localize('noAuthenticationProviders', "No authentication providers registered")
+				title: nls.localize('loading', "Loading...")
 			},
 		});
 	}
@@ -60,7 +60,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._authenticationProviders.set(id, authenticationProvider);
 		this._onDidRegisterAuthenticationProvider.fire(id);
 
-		if (authenticationProvider.dependents.length && this._placeholderMenuItem) {
+		if (this._placeholderMenuItem) {
 			this._placeholderMenuItem.dispose();
 			this._placeholderMenuItem = undefined;
 		}
@@ -78,7 +78,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 				command: {
 					id: 'noAuthenticationProviders',
-					title: nls.localize('noAuthenticationProviders', "No authentication providers registered")
+					title: nls.localize('loading', "Loading...")
 				},
 			});
 		}

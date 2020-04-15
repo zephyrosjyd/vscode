@@ -3275,6 +3275,10 @@ declare namespace monaco.editor {
 		 */
 		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
+		/**
+		 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+		 */
+		loop?: boolean;
 	}
 
 	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
@@ -3645,10 +3649,6 @@ declare namespace monaco.editor {
 		 * Overwrite word ends on accept. Default to false.
 		 */
 		insertMode?: 'insert' | 'replace';
-		/**
-		 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
-		 */
-		insertHighlight?: boolean;
 		/**
 		 * Enable graceful matching. Defaults to true.
 		 */

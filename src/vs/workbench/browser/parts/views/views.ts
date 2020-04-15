@@ -109,8 +109,7 @@ export class ContributableViewsModel extends Disposable {
 		const added: IAddedViewDescriptorRef[] = [];
 		const removed: IViewDescriptorRef[] = [];
 
-		for (const { id, visible, size } of viewDescriptors) {
-			const { visibleIndex, viewDescriptor, state } = this.find(id);
+		for (const { visibleIndex, viewDescriptor, state, visible, size } of viewDescriptors.map(({ id, visible, size }) => ({ ...this.find(id), visible, size }))) {
 
 			if (!viewDescriptor.canToggleVisibility) {
 				throw new Error(`Can't toggle this view's visibility`);
@@ -338,13 +337,14 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		const globalViewsStateStorageId = `${viewletStateStorageId}.hidden`;
+		storageKeysSyncRegistryService.registerStorageKey({ key: globalViewsStateStorageId, version: 1 });
 		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, globalViewsStateStorageId, storageService);
 
 		super(container, viewDescriptorService, viewStates);
 
+		this.storageService = storageService;
 		this.workspaceViewsStateStorageId = viewletStateStorageId;
 		this.globalViewsStateStorageId = globalViewsStateStorageId;
-		this.storageService = storageService;
 
 		this._register(Event.any(
 			this.onDidAdd,
@@ -353,7 +353,6 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 			Event.map(this.onDidChangeViewState, viewDescriptorRef => [viewDescriptorRef]))
 			(viewDescriptorRefs => this.saveViewsStates()));
 
-		storageKeysSyncRegistryService.registerStorageKey({ key: this.globalViewsStateStorageId, version: 1 });
 		this._globalViewsStatesValue = this.getStoredGlobalViewsStatesValue();
 		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
 	}
@@ -537,6 +536,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IPanelService private readonly panelService: IPanelService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super();
 
@@ -716,9 +716,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 			const compositeDescriptor = this.getComposite(viewContainer.id, location!);
 			if (compositeDescriptor) {
-				const paneComposite = await this.openComposite(compositeDescriptor.id, location!, focus) as IPaneComposite | undefined;
+				const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
 				if (paneComposite && paneComposite.openView) {
 					return paneComposite.openView(id, focus) as T;
+				} else if (focus) {
+					paneComposite?.focus();
 				}
 			}
 		}
@@ -736,7 +738,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					if (activeViewPaneContainer.views.length === 1) {
 						const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
-							this.viewletService.hideActiveViewlet();
+							this.layoutService.setSideBarHidden(true);
 						} else if (location === ViewContainerLocation.Panel) {
 							this.panelService.hideActivePanel();
 						}

@@ -6,7 +6,7 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
@@ -29,7 +29,7 @@ import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
+import { isUndefinedOrNull, assertIsDefined, isString } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
@@ -42,6 +42,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { Before2D } from 'vs/workbench/browser/dnd';
 
 interface IPlaceholderViewlet {
 	id: string;
@@ -86,18 +87,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private globalActivityAction: ActivityAction | undefined;
 	private globalActivityActionBar: ActionBar | undefined;
-	private globalActivity: ICompositeActivity[] = [];
+	private readonly globalActivity: ICompositeActivity[] = [];
 
 	private customMenubar: CustomMenubarControl | undefined;
 	private menubar: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
 
-	private cachedViewlets: ICachedViewlet[] = [];
+	private readonly cachedViewlets: ICachedViewlet[] = [];
 
 	private compositeBar: CompositeBar;
-	private readonly compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
+	private readonly compositeActions = new Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
 
-	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
+	private readonly viewletDisposables = new Map<string, IDisposable>();
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
@@ -115,8 +116,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IProductService private readonly productService: IProductService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-		this.migrateFromOldCachedViewletsValue();
+
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEWLETS, version: 1 });
+		this.migrateFromOldCachedViewletsValue();
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {
@@ -152,7 +154,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
 				(id: string, focus?: boolean) => this.viewletService.openViewlet(id, focus),
-				(from: string, to: string, before?: boolean) => this.compositeBar.move(from, to, before)
+				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.verticallyBefore)
 			),
 			compositeSize: 50,
 			colors: (theme: IColorTheme) => this.getActivitybarItemColors(theme),
@@ -456,12 +458,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		for (const viewlet of viewlets) {
 			this.enableCompositeActions(viewlet);
-			const viewContainer = this.getViewContainer(viewlet.id);
-			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				this.onDidChangeActiveViews(viewlet, viewDescriptors);
-				this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
-			}
+			const viewContainer = this.getViewContainer(viewlet.id)!;
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+			this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty);
+			this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty)));
 		}
 	}
 
@@ -475,10 +475,33 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.hideComposite(viewletId);
 	}
 
-	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
+
+		// Use the viewlet icon if any view inside belongs to it statically
+		const shouldUseViewletIcon = viewDescriptors.allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id)?.id === viewlet.id);
+
+		const activity: IActivity = {
+			id: viewlet.id,
+			name: shouldUseViewletIcon ? viewlet.name : viewDescriptor.name,
+			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? 'codicon-window' : undefined)),
+			iconUrl: shouldUseViewletIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
+			keybindingId: viewlet.keybindingId
+		};
+
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
+		activityAction.setActivity(activity);
+
+		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+			pinnedAction.setActivity(activity);
+		}
+	}
+
+	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection, hideIfEmpty?: boolean): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
+			this.updateActivity(viewlet, viewDescriptors);
 			this.compositeBar.addComposite(viewlet);
-		} else {
+		} else if (hideIfEmpty) {
 			this.hideComposite(viewlet.id);
 		}
 	}

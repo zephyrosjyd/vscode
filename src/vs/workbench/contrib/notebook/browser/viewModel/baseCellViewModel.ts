@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
-import { Range } from 'vs/editor/common/core/range';
-import { ICell, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CursorAtBoundary, CellFocusMode, CellEditState, CellRunState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { EDITOR_TOP_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 export const NotebookCellMetadataDefaults = {
 	editable: true,
 	runnable: true
 };
 
-export abstract class BaseCellViewModel extends Disposable {
+export abstract class BaseCellViewModel extends Disposable implements ICellViewModel {
 	protected readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose = this._onDidDispose.event;
 	protected readonly _onDidChangeCellEditState = new Emitter<void>();
@@ -37,17 +39,19 @@ export abstract class BaseCellViewModel extends Disposable {
 	protected readonly _onDidChangeLanguage: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 	get handle() {
-		return this.cell.handle;
+		return this.model.handle;
 	}
 	get uri() {
-		return this.cell.uri;
+		return this.model.uri;
 	}
 	get lineCount() {
-		return this.cell.source.length;
+		return this.model.source.length;
 	}
 	get metadata() {
-		return this.cell.metadata;
+		return this.model.metadata;
 	}
+
+	abstract cellKind: CellKind;
 
 	private _editState: CellEditState = CellEditState.Preview;
 
@@ -63,20 +67,21 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._editState = newState;
 		this._onDidChangeCellEditState.fire();
 	}
-	private _runState: CellRunState = CellRunState.Idle;
 
-	get runState(): CellRunState {
-		return this._runState;
-	}
-
-	set runState(newState: CellRunState) {
-		if (newState === this._runState) {
-			return;
-		}
-
-		this._runState = newState;
+	private _currentTokenSource: CancellationTokenSource | undefined;
+	public set currentTokenSource(v: CancellationTokenSource | undefined) {
+		this._currentTokenSource = v;
 		this._onDidChangeCellRunState.fire();
 	}
+
+	public get currentTokenSource(): CancellationTokenSource | undefined {
+		return this._currentTokenSource;
+	}
+
+	get runState(): CellRunState {
+		return this._currentTokenSource ? CellRunState.Running : CellRunState.Idle;
+	}
+
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
 	get focusMode() {
 		return this._focusMode;
@@ -99,14 +104,14 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _lastDecorationId: number = 0;
 	protected _textModel?: model.ITextModel;
 
-	constructor(readonly viewType: string, readonly notebookHandle: number, readonly cell: ICell, public id: string) {
+	constructor(readonly viewType: string, readonly notebookHandle: number, readonly model: NotebookCellTextModel, public id: string) {
 		super();
 
-		this._register(cell.onDidChangeLanguage((e) => {
+		this._register(model.onDidChangeLanguage((e) => {
 			this._onDidChangeLanguage.fire(e);
 		}));
 
-		this._register(cell.onDidChangeMetadata(() => {
+		this._register(model.onDidChangeMetadata(() => {
 			this._onDidChangeMetadata.fire();
 		}));
 	}
@@ -181,7 +186,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return this._textModel.getValue();
 		}
 
-		return this.cell.source.join('\n');
+		return this.model.source.join('\n');
 	}
 
 	private saveViewState(): editorCommon.ICodeEditorViewState | null {
@@ -200,7 +205,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._editorViewStates;
 	}
 
-	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null) {
+	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		this._editorViewStates = editorViewStates;
 	}
 
@@ -259,7 +264,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_PADDING + EDITOR_TOOLBAR_HEIGHT;
+		return this._textEditor.getTopForLineNumber(line) + EDITOR_TOP_MARGIN + EDITOR_TOOLBAR_HEIGHT;
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
@@ -304,7 +309,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
 		} else {
 			if (!this._buffer) {
-				this._buffer = this.cell.resolveTextBufferFactory().create(model.DefaultEndOfLine.LF);
+				this._buffer = this.model.resolveTextBufferFactory().create(model.DefaultEndOfLine.LF);
 			}
 
 			const lineCount = this._buffer.getLineCount();

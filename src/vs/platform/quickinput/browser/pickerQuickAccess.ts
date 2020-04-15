@@ -59,8 +59,17 @@ export interface IPickerQuickAccessItem extends IQuickPickItem {
 	trigger?(buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction>;
 }
 
-export interface IPickerQuickAccessProviderOptions {
+export interface IPickerQuickAccessProviderOptions<T extends IPickerQuickAccessItem> {
+
+	/**
+	 * Enables support for opening picks in the background via gesture.
+	 */
 	canAcceptInBackground?: boolean;
+
+	/**
+	 * Enables to show a pick entry when no results are returned from a search.
+	 */
+	noResultsPick?: T;
 }
 
 export type Pick<T> = T | IQuickPickSeparator;
@@ -85,7 +94,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 	private static FAST_PICKS_RACE_DELAY = 200; // timeout before we accept fast results before slow results are present
 
-	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions) {
+	constructor(private prefix: string, protected options?: IPickerQuickAccessProviderOptions<T>) {
 		super();
 	}
 
@@ -113,18 +122,37 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
-			const providedPicks = this.getPicks(picker.value.substr(this.prefix.length).trim(), picksDisposables, picksToken);
+			const picksFilter = picker.value.substr(this.prefix.length).trim();
+			const providedPicks = this.getPicks(picksFilter, picksDisposables, picksToken);
 
-			function applyPicks(picks: Picks<T>): void {
+			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
+				let items: ReadonlyArray<Pick<T>>;
+				let activeItem: T | undefined = undefined;
+
 				if (isPicksWithActive(picks)) {
-					picker.items = picks.items;
-					if (picks.active) {
-						picker.activeItems = [picks.active];
-					}
+					items = picks.items;
+					activeItem = picks.active;
 				} else {
-					picker.items = picks;
+					items = picks;
 				}
-			}
+
+				if (items.length === 0) {
+					if (skipEmpty) {
+						return false;
+					}
+
+					if (picksFilter.length > 0 && this.options?.noResultsPick) {
+						items = [this.options.noResultsPick];
+					}
+				}
+
+				picker.items = items;
+				if (activeItem) {
+					picker.activeItems = [activeItem];
+				}
+
+				return true;
+			};
 
 			// No Picks
 			if (providedPicks === null) {
@@ -133,8 +161,8 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			// Fast and Slow Picks
 			else if (isFastAndSlowPicks(providedPicks)) {
-				let fastPicksHandlerDone = false;
-				let slowPicksHandlerDone = false;
+				let fastPicksApplied = false;
+				let slowPicksApplied = false;
 
 				await Promise.all([
 
@@ -143,17 +171,13 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 					// If the slow picks are faster, we reduce the flicker by
 					// only setting the items once.
 					(async () => {
-						try {
-							await timeout(PickerQuickAccessProvider.FAST_PICKS_RACE_DELAY);
-							if (picksToken.isCancellationRequested) {
-								return;
-							}
+						await timeout(PickerQuickAccessProvider.FAST_PICKS_RACE_DELAY);
+						if (picksToken.isCancellationRequested) {
+							return;
+						}
 
-							if (!slowPicksHandlerDone) {
-								applyPicks(providedPicks.picks);
-							}
-						} finally {
-							fastPicksHandlerDone = true;
+						if (!slowPicksApplied) {
+							fastPicksApplied = applyPicks(providedPicks.picks, true /* skip over empty to reduce flicker */);
 						}
 					})(),
 
@@ -186,7 +210,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								additionalPicks = awaitedAdditionalPicks;
 							}
 
-							if (additionalPicks.length > 0 || !fastPicksHandlerDone) {
+							if (additionalPicks.length > 0 || !fastPicksApplied) {
 								applyPicks({
 									items: [...picks, ...additionalPicks],
 									active: activePick || additionalActivePick
@@ -197,7 +221,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								picker.busy = false;
 							}
 
-							slowPicksHandlerDone = true;
+							slowPicksApplied = true;
 						}
 					})()
 				]);
