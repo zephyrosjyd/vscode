@@ -318,7 +318,6 @@ export class Workbench extends Layout {
 
 		// ARIA
 		setARIAContainer(this.container);
-		this.container.setAttribute('role', 'application');
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -369,6 +368,9 @@ export class Workbench extends Layout {
 		addClasses(part, 'part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
+		if (role === 'status') {
+			part.setAttribute('aria-live', 'off');
+		}
 
 		return part;
 	}

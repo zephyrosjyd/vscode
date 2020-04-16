@@ -956,7 +956,7 @@ class SuggestAdapter {
 			//
 			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
 			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
-			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
+			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
 			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
@@ -994,7 +994,7 @@ class SuggestAdapter {
 			// "old" range
 			result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
 
-		} else if (range && !defaultInsertRange?.isEqual(range.inserting) && !defaultReplaceRange?.isEqual(range.replacing)) {
+		} else if (range && (!defaultInsertRange?.isEqual(range.inserting) || !defaultReplaceRange?.isEqual(range.replacing))) {
 			// ONLY send range when it's different from the default ranges (safe bandwidth)
 			result[extHostProtocol.ISuggestDataDtoField.range] = {
 				insert: typeConvert.Range.from(range.inserting),

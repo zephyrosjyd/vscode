@@ -615,6 +615,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return !!container && isAncestor(activeElement, container);
 	}
 
+	focusPart(part: Parts): void {
+		switch (part) {
+			case Parts.EDITOR_PART:
+				this.editorGroupService.activeGroup.focus();
+				break;
+			case Parts.PANEL_PART:
+				const activePanel = this.panelService.getActivePanel();
+				if (activePanel) {
+					activePanel.focus();
+				}
+				break;
+			case Parts.SIDEBAR_PART:
+				const activeViewlet = this.viewletService.getActiveViewlet();
+				if (activeViewlet) {
+					activeViewlet.focus();
+				}
+				break;
+			default:
+				// Status Bar, Activity Bar and Title Bar simply pass focus to container
+				const container = this.getContainer(part);
+				if (container) {
+					container.focus();
+				}
+		}
+	}
+
 	getContainer(part: Parts): HTMLElement | undefined {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
@@ -893,6 +919,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		);
 
 		this.container.prepend(workbenchGrid.element);
+		this.container.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
 
 		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
@@ -960,10 +987,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
-		if (
-			(this.editorGroupService.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize'))
-			|| (this.editorGroupService.groups.length === 1 && activeEditor && activeEditor instanceof SideBySideEditorInput)
-		) {
+		if (this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')
+			&& (this.editorGroupService.groups.length > 1 || (activeEditor && activeEditor instanceof SideBySideEditorInput))) {
 			smartActive = false; // Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
 		}
 

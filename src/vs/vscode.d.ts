@@ -810,7 +810,7 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a reference to a theme icon.
-		 * @param id id of the icon. The avaiable icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
 		 */
 		constructor(id: string);
 	}
@@ -1279,6 +1279,28 @@ declare module 'vscode' {
 		static file(path: string): Uri;
 
 		/**
+		 * Create a new uri which path is the result of joining
+		 * the path of the base uri with the provided path segments.
+		 *
+		 * - Note 1: `joinPath` only affects the path component
+		 * and all other components (scheme, authority, query, and fragment) are
+		 * left as they are.
+		 * - Note 2: The base uri must have a path; an error is thrown otherwise.
+		 *
+		 * The path segments are normalized in the following ways:
+		 * - sequences of path separators (`/` or `\`) are replaced with a single separator
+		 * - for `file`-uris on windows, the backslash-character (`\`) is considered a path-separator
+		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segement
+		 * - paths have a root which always remains, for instance on windows drive-letters are roots
+		 * so that is true: `joinPath(Uri.file('file:///c:/root'), '../../other').fsPath === 'c:/other'`
+		 *
+		 * @param base An uri. Must have a path.
+		 * @param pathSegments One more more path fragments
+		 * @returns A new uri which path is joined with the given fragments
+		 */
+		static joinPath(base: Uri, ...pathSegments: string[]): Uri;
+
+		/**
 		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
 		 */
 		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
@@ -1490,7 +1512,7 @@ declare module 'vscode' {
 		 *
 		 * @param data The event object.
 		 */
-		fire(data?: T): void;
+		fire(data: T): void;
 
 		/**
 		 * Dispose this object and free resources.
@@ -3158,11 +3180,11 @@ declare module 'vscode' {
 		/**
 		 * The possible token types.
 		 */
-		public readonly tokenTypes: string[];
+		readonly tokenTypes: string[];
 		/**
 		 * The possible token modifiers.
 		 */
-		public readonly tokenModifiers: string[];
+		readonly tokenModifiers: string[];
 
 		constructor(tokenTypes: string[], tokenModifiers?: string[]);
 	}
@@ -5340,7 +5362,13 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The absolute file path of the directory containing this extension.
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+
+		/**
+		 * The absolute file path of the directory containing this extension. Shorthand
+		 * notation for [Extension.extensionUri.fsPath](#Extension.extensionUri) (independent of the uri scheme).
 		 */
 		readonly extensionPath: string;
 
@@ -5405,7 +5433,13 @@ declare module 'vscode' {
 		readonly globalState: Memento;
 
 		/**
-		 * The absolute file path of the directory containing the extension.
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+
+		/**
+		 * The absolute file path of the directory containing the extension. Shorthand
+		 * notation for [ExtensionContext.extensionUri.fsPath](#TextDocument.uri) (independent of the uri scheme).
 		 */
 		readonly extensionPath: string;
 
@@ -6434,7 +6468,7 @@ declare module 'vscode' {
 	 * with files from the local disk as well as files from remote places, like the
 	 * remote extension host or ftp-servers.
 	 *
-	 * *Note* that an instance of this interface is avaiable as [`workspace.fs`](#workspace.fs).
+	 * *Note* that an instance of this interface is available as [`workspace.fs`](#workspace.fs).
 	 */
 	export interface FileSystem {
 
@@ -7623,6 +7657,14 @@ declare module 'vscode' {
 		export function createTerminal(options: ExtensionTerminalOptions): Terminal;
 
 		/**
+		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
+		 * handle links that are activated within terminals.
+		 * @param handler The link handler being registered.
+		 * @return A disposable that unregisters the link handler.
+		 */
+		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
+
+		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
 		 * This will allow you to contribute data to the [TreeView](#TreeView) and update if the data changes.
 		 *
@@ -8180,6 +8222,21 @@ declare module 'vscode' {
 		 *   without providing an exit code.
 		 */
 		readonly code: number | undefined;
+	}
+
+	/**
+	 * Describes how to handle terminal links.
+	 */
+	export interface TerminalLinkHandler {
+		/**
+		 * Handles a link that is activated within the terminal.
+		 *
+		 * @param terminal The terminal the link was activated on.
+		 * @param link The text of the link activated.
+		 * @return Whether the link was handled, if the link was handled this link will not be
+		 * considered by any other extension or by the default built-in link handler.
+		 */
+		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
 	}
 
 	/**
@@ -9746,6 +9803,11 @@ declare module 'vscode' {
 		 * A string to show as placeholder in the input box to guide the user.
 		 */
 		placeholder: string;
+
+		/**
+		 * Controls whether the input box is visible (default is `true`).
+		 */
+		visible: boolean;
 	}
 
 	interface QuickDiffProvider {
