@@ -98,12 +98,14 @@ steps:
     ./scripts/test.sh --build --tfs "Unit Tests"
   displayName: Run unit tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  continueOnError: true
 
 - script: |
     set -e
     yarn test-browser --build --browser chromium --browser webkit --browser firefox
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  continueOnError: true
 
 - script: |
     # Figure out the full absolute path of the product we just built
@@ -117,6 +119,7 @@ steps:
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  continueOnError: true
 
 - script: |
     set -e
@@ -127,6 +130,7 @@ steps:
     ./resources/server/test/test-remote-integration.sh
   displayName: Run remote integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  continueOnError: true
 
 - script: |
     set -e
@@ -134,6 +138,7 @@ steps:
     ./resources/server/test/test-web-integration.sh --browser webkit
   displayName: Run integration tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  continueOnError: true
 
 - script: |
     set -e
@@ -143,6 +148,7 @@ steps:
   continueOnError: true
   displayName: Run smoke tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  continueOnError: true
 
 - script: |
     set -e
@@ -151,6 +157,7 @@ steps:
   continueOnError: true
   displayName: Run smoke tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  continueOnError: true
 
 - script: |
     set -e
