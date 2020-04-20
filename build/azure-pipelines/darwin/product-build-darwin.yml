@@ -148,7 +148,6 @@ steps:
   continueOnError: true
   displayName: Run smoke tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-  continueOnError: true
 
 - script: |
     set -e
@@ -157,7 +156,6 @@ steps:
   continueOnError: true
   displayName: Run smoke tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-  continueOnError: true
 
 - script: |
     set -e
