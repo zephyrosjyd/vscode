@@ -269,20 +269,26 @@ class RemoteSourceProviderQuickPick {
 	@throttle
 	async query(): Promise<void> {
 		this.quickpick.busy = true;
-		const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
-		this.quickpick.busy = false;
 
-		if (remoteSources.length === 0) {
-			this.quickpick.items = [{
-				label: localize('none found', "No remote repositories found."),
-				alwaysShow: true
-			}];
-		} else {
-			this.quickpick.items = remoteSources.map(remoteSource => ({
-				label: remoteSource.name,
-				description: remoteSource.url,
-				remote: remoteSource
-			}));
+		try {
+			const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
+
+			if (remoteSources.length === 0) {
+				this.quickpick.items = [{
+					label: localize('none found', "No remote repositories found."),
+					alwaysShow: true
+				}];
+			} else {
+				this.quickpick.items = remoteSources.map(remoteSource => ({
+					label: remoteSource.name,
+					description: typeof remoteSource.url === 'string' ? remoteSource.url : '',
+					remoteSource
+				}));
+			}
+		} catch (err) {
+			this.quickpick.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
+		} finally {
+			this.quickpick.busy = false;
 		}
 	}
 
@@ -514,7 +520,7 @@ export class CommandCenter {
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
 		if (!url) {
-			const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider })>();
+			const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
 			quickpick.ignoreFocusOut = true;
 
 			const providers = this.model.getRemoteProviders()
@@ -529,7 +535,8 @@ export class CommandCenter {
 					quickpick.items = [{
 						label: localize('repourl', "Clone from URL"),
 						description: value,
-						alwaysShow: true
+						alwaysShow: true,
+						url: value
 					},
 					...providers];
 				} else {
@@ -543,12 +550,19 @@ export class CommandCenter {
 			const result = await getQuickPickResult(quickpick);
 
 			if (result) {
-				if (result.provider) {
+				if (result.url) {
+					url = result.url;
+				} else if (result.provider) {
 					const quickpick = new RemoteSourceProviderQuickPick(result.provider);
 					const remote = await quickpick.pick();
-					url = remote?.url;
-				} else {
-					url = result.label;
+
+					if (remote) {
+						if (typeof remote.url === 'string') {
+							url = remote.url;
+						} else if (remote.url.length > 0) {
+							url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
+						}
+					}
 				}
 			}
 		}

@@ -1625,6 +1625,8 @@ declare module 'vscode' {
 	export interface NotebookCell {
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
+		readonly document: TextDocument;
+		// API remove `source` or doc it as shorthand for document.getText()
 		readonly source: string;
 		language: string;
 		outputs: CellOutput[];
@@ -1665,6 +1667,19 @@ declare module 'vscode' {
 		languages: string[];
 		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
+	}
+
+	export interface NotebookConcatTextDocument {
+		isClosed: boolean;
+		dispose(): void;
+		onDidChange: Event<void>;
+		version: number;
+		getText(): string;
+		getText(range: Range): string;
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
 	}
 
 	export interface NotebookEditorCellEdit {
@@ -1736,6 +1751,15 @@ declare module 'vscode' {
 		export let activeNotebookDocument: NotebookDocument | undefined;
 
 		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+
+		/**
+		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
+		 * but a selector can be provided to narrow to down the set of cells.
+		 *
+		 * @param notebook
+		 * @param selector
+		 */
+		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 	}
 
 	//#endregion
