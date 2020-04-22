@@ -96,6 +96,21 @@ export interface INotebookEditorMouseEvent {
 	readonly target: CellViewModel;
 }
 
+export interface INotebookEditorContribution {
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
+	/**
+	 * Store view state.
+	 */
+	saveViewState?(): any;
+	/**
+	 * Restore view state.
+	 */
+	restoreViewState?(state: any): void;
+}
+
 export interface INotebookEditor {
 
 	/**
@@ -103,8 +118,14 @@ export interface INotebookEditor {
 	 */
 	viewModel: NotebookViewModel | undefined;
 
+	/**
+	 * An event emitted when the model of this editor has changed.
+	 * @event
+	 */
+	readonly onDidChangeModel: Event<void>;
 	isNotebookEditor: boolean;
 
+	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
 	/**
@@ -278,18 +299,6 @@ export interface INotebookEditor {
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
 
 	/**
-	 * Show Find Widget.
-	 *
-	 * Currently Find is still part of the NotebookEditor core
-	 */
-	showFind(): void;
-
-	/**
-	 * Hide Find Widget
-	 */
-	hideFind(): void;
-
-	/**
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
@@ -300,6 +309,13 @@ export interface INotebookEditor {
 	 * @event
 	 */
 	onMouseDown(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
+
+	/**
+	 * Get a contribution of this editor.
+	 * @id Unique identifier of the contribution.
+	 * @return The contribution or null if contribution not found.
+	 */
+	getContribution<T extends INotebookEditorContribution>(id: string): T;
 }
 
 export interface INotebookCellList {
