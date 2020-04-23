@@ -18,10 +18,10 @@ import * as semver from 'semver-umd';
 
 const ExtensionIdVersionRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/;
 
-export class ExtensionDownloadsCache extends Disposable {
+export class ExtensionsDownloader extends Disposable {
 
 	private readonly extensionsDownloadDir: URI = URI.file(tmpdir());
-	private readonly cacheSize: number = 0;
+	private readonly cache: number = 0;
 	private readonly cleanUpPromise: Promise<void> = Promise.resolve();
 
 	constructor(
@@ -33,21 +33,21 @@ export class ExtensionDownloadsCache extends Disposable {
 		super();
 		if (environmentService.extensionsDownloadPath) {
 			this.extensionsDownloadDir = URI.file(environmentService.extensionsDownloadPath);
-			this.cacheSize = 20;
+			this.cache = 20; // Cache 20 downloads
 			this.cleanUpPromise = this.cleanUp();
 		}
 	}
 
 	async downloadExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
 		await this.cleanUpPromise;
-		const location = joinPath(this.extensionsDownloadDir, this.cacheSize ? this.getName(extension) : generateUuid());
+		const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
 		await this.download(extension, location, operation);
 		return location;
 	}
 
 	async delete(location: URI): Promise<void> {
 		// Delete immediately if caching is disabled
-		if (!this.cacheSize) {
+		if (!this.cache) {
 			await this.fileService.del(location);
 		}
 	}
@@ -66,27 +66,27 @@ export class ExtensionDownloadsCache extends Disposable {
 			}
 			const folderStat = await this.fileService.resolve(this.extensionsDownloadDir);
 			if (folderStat.children) {
-				const toRemove: IFileStat[] = [];
-				const allExtensions: { extensionIdentifierWithVersion: ExtensionIdentifierWithVersion, stat: IFileStat }[] = [];
+				const toDelete: URI[] = [];
+				const all: [ExtensionIdentifierWithVersion, IFileStat][] = [];
 				for (const stat of folderStat.children) {
-					const extensionIdentifierWithVersion = this.parse(stat.name);
-					if (extensionIdentifierWithVersion) {
-						allExtensions.push({ extensionIdentifierWithVersion, stat });
+					const extension = this.parse(stat.name);
+					if (extension) {
+						all.push([extension, stat]);
 					} else {
-						toRemove.push(stat);
+						toDelete.push(stat.resource); // Delete those which are not an extension
 					}
 				}
-				const byExtension = groupByExtension(allExtensions, e => e.extensionIdentifierWithVersion.identifier);
-				const distinctExtensions: IFileStat[] = [];
+				const byExtension = groupByExtension(all, ([extension]) => extension.identifier);
+				const distinct: URI[] = [];
 				for (const p of byExtension) {
-					p.sort((a, b) => semver.rcompare(a.extensionIdentifierWithVersion.version, b.extensionIdentifierWithVersion.version));
-					toRemove.push(...p.slice(1).map(e => e.stat));
-					distinctExtensions.push(p[0].stat);
+					p.sort((a, b) => semver.rcompare(a[0].version, b[0].version));
+					toDelete.push(...p.slice(1).map(e => e[1].resource)); // Delete outdated extensions
+					distinct.push(p[0][1].resource);
 				}
-				toRemove.push(...distinctExtensions.slice(0, Math.max(0, distinctExtensions.length - this.cacheSize)));
-				await Promise.all(toRemove.map(stat => {
-					this.logService.trace('Deleting vsix from backup', stat.resource.path);
-					return this.fileService.del(stat.resource);
+				toDelete.push(...distinct.slice(0, Math.max(0, distinct.length - this.cache))); // Retain minimum cacheSize and delete the rest
+				await Promise.all(toDelete.map(resource => {
+					this.logService.trace('Deleting vsix from cache', resource.path);
+					return this.fileService.del(resource);
 				}));
 			}
 		} catch (e) {
@@ -95,7 +95,7 @@ export class ExtensionDownloadsCache extends Disposable {
 	}
 
 	private getName(extension: IGalleryExtension): string {
-		return new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key().toLowerCase();
+		return this.cache ? new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key().toLowerCase() : generateUuid();
 	}
 
 	private parse(name: string): ExtensionIdentifierWithVersion | null {
