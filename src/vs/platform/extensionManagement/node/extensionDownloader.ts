@@ -5,7 +5,7 @@
 
 import { tmpdir } from 'os';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
@@ -64,10 +64,10 @@ export class ExtensionsDownloader extends Disposable {
 				this.logService.trace('Extension VSIX downlads cache dir does not exist');
 				return;
 			}
-			const folderStat = await this.fileService.resolve(this.extensionsDownloadDir);
+			const folderStat = await this.fileService.resolve(this.extensionsDownloadDir, { resolveMetadata: true });
 			if (folderStat.children) {
 				const toDelete: URI[] = [];
-				const all: [ExtensionIdentifierWithVersion, IFileStat][] = [];
+				const all: [ExtensionIdentifierWithVersion, IFileStatWithMetadata][] = [];
 				for (const stat of folderStat.children) {
 					const extension = this.parse(stat.name);
 					if (extension) {
@@ -77,13 +77,14 @@ export class ExtensionsDownloader extends Disposable {
 					}
 				}
 				const byExtension = groupByExtension(all, ([extension]) => extension.identifier);
-				const distinct: URI[] = [];
+				const distinct: IFileStatWithMetadata[] = [];
 				for (const p of byExtension) {
 					p.sort((a, b) => semver.rcompare(a[0].version, b[0].version));
 					toDelete.push(...p.slice(1).map(e => e[1].resource)); // Delete outdated extensions
-					distinct.push(p[0][1].resource);
+					distinct.push(p[0][1]);
 				}
-				toDelete.push(...distinct.slice(0, Math.max(0, distinct.length - this.cache))); // Retain minimum cacheSize and delete the rest
+				distinct.sort((a, b) => a.mtime - b.mtime); // sort by modified time
+				toDelete.push(...distinct.slice(0, Math.max(0, distinct.length - this.cache)).map(s => s.resource)); // Retain minimum cacheSize and delete the rest
 				await Promise.all(toDelete.map(resource => {
 					this.logService.trace('Deleting vsix from cache', resource.path);
 					return this.fileService.del(resource);
