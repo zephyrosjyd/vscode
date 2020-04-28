@@ -1247,12 +1247,12 @@ declare module 'vscode' {
 	 *
 	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
 	 */
-	interface CustomDocumentEditEvent {
+	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
 
 		/**
 		 * The document that the edit is for.
 		 */
-		readonly document: CustomDocument;
+		readonly document: T;
 
 		/**
 		 * Undo the edit operation.
@@ -1282,11 +1282,11 @@ declare module 'vscode' {
 	 *
 	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
 	 */
-	interface CustomDocumentContentChangeEvent {
+	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
 		/**
 		 * The document that the change is for.
 		 */
-		readonly document: CustomDocument;
+		readonly document: T;
 	}
 
 	/**
@@ -1337,10 +1337,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Provider for custom editors that use a custom document model.
+	 * Provider for readonly custom editors that use a custom document model.
 	 *
 	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
-	 * This gives extensions full control over actions such as edit, save, and backup.
 	 *
 	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
 	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
@@ -1383,6 +1382,17 @@ declare module 'vscode' {
 		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
 	}
 
+	/**
+	 * Provider for editiable custom editors that use a custom document model.
+	 *
+	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
+	 * This gives extensions full control over actions such as edit, save, and backup.
+	 *
+	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
+	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
+	 *
+	 * @param T Type of the custom document returned by this provider.
+	 */
 	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> extends CustomReadonlyEditorProvider<T> {
 		/**
 		 * Signal that an edit has occurred inside a custom editor.
@@ -1404,7 +1414,7 @@ declare module 'vscode' {
 		 *
 		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
 		 */
-		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent> | Event<CustomDocumentContentChangeEvent>;
+		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent<T>> | Event<CustomDocumentContentChangeEvent<T>>;
 
 		/**
 		 * Save a custom document.
@@ -1421,7 +1431,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that saving has completed.
 		 */
-		saveCustomDocument(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+		saveCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Save a custom document to a different location.
@@ -1437,7 +1447,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that saving has completed.
 		 */
-		saveCustomDocumentAs(document: CustomDocument, destination: Uri, cancellation: CancellationToken): Thenable<void>;
+		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Revert a custom document to its last saved state.
@@ -1457,7 +1467,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revertCustomDocument(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+		revertCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Back up a dirty custom document.
@@ -1479,7 +1489,7 @@ declare module 'vscode' {
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backupCustomDocument(document: CustomDocument, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 	}
 
 	namespace window {
