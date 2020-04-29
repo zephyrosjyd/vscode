@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 
@@ -239,5 +239,25 @@ suite('ObjectTreeModel', function () {
 		assert.deepEqual(toArray(list), [0, 1, 2]);
 		model.expandTo(1000);
 		assert.deepEqual(toArray(list), [0, 10, 100, 1000, 11, 12, 1, 2]);
+	});
+
+	test('scoped setChildren with filtering and recurse tree visibility #95641', () => {
+		const list: ITreeNode<number>[] = [];
+		const filter = new class implements ITreeFilter<number> {
+			filter(element: number, parentVisibility: TreeVisibility): TreeVisibility {
+				if (element === 0) {
+					return TreeVisibility.Recurse;
+				}
+
+				return element % 2 === 0 ? TreeVisibility.Visible : parentVisibility;
+			}
+		};
+		const model = new ObjectTreeModel<number>('test', toSpliceable(list), { filter });
+
+		model.setChildren(null, [{ element: 0, children: [{ element: 2 }] }]);
+		assert.deepEqual(toArray(list), [0, 2]);
+
+		model.setChildren(0, [{ element: 1 }]);
+		assert.deepEqual(toArray(list), []); // BOOM
 	});
 });
