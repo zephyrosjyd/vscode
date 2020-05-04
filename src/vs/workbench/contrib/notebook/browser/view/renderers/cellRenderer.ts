@@ -353,11 +353,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
-		const editorContainer = DOM.append(editorPart, $('.markdown-editor-container'));
+		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
-		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
+		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-top'));
+		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-bottom'));
 		const foldingIndicator = DOM.append(focusIndicator, DOM.$('.notebook-folding-indicator'));
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
@@ -365,7 +366,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 
 		const templateData: MarkdownCellRenderTemplate = {
-			insertionIndicatorTop,
 			container,
 			cellContainer: innerContent,
 			editorPart,
@@ -385,16 +385,36 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private getDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+		if (templateData.currentRenderedCell!.editState === CellEditState.Editing) {
+			return this._getEditDragImage(templateData);
+		} else {
+			return this._getMarkdownDragImage(templateData);
+		}
+	}
+
+	private _getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
 		dragImageContainer.innerHTML = templateData.container.innerHTML;
+
+		// Remove all rendered content nodes after the
+		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
+		const contentNodes = markdownContent.children[0].children;
+		for (let i = contentNodes.length - 1; i >= 1; i--) {
+			contentNodes.item(i)!.remove();
+		}
+
 		return dragImageContainer;
 	}
 
+	private _getEditDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+		return new CodeCellDragImageRenderer().getDragImage(templateData, templateData.currentEditor!, 'markdown');
+	}
 
 	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
 		this.commonRenderElement(element, index, templateData);
 
 		templateData.currentRenderedCell = element;
+		templateData.currentEditor = undefined;
 		templateData.editorPart!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
 		let renderedHTML = element.getHTML();
@@ -465,7 +485,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 }
 
 const DRAGGING_CLASS = 'cell-dragging';
-const DRAGOVER_CLASS = 'cell-dragover';
+const DRAGOVER_TOP_CLASS = 'cell-dragover-top';
+const DRAGOVER_BOTTOM_CLASS = 'cell-dragover-bottom';
 
 type DragImageProvider = () => HTMLElement;
 
@@ -518,6 +539,10 @@ export class CellDragAndDropController {
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_OVER)(event => {
 			event.preventDefault();
+
+			const location = this.getDropInsertLocation(templateData, event);
+			DOM.toggleClass(container, DRAGOVER_TOP_CLASS, location === 'above');
+			DOM.toggleClass(container, DRAGOVER_BOTTOM_CLASS, location === 'below');
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DROP)(event => {
@@ -525,20 +550,40 @@ export class CellDragAndDropController {
 
 			const draggedCell = this.currentDraggedCell!;
 			dragCleanup();
-			this.notebookEditor.moveCell(draggedCell, templateData.currentRenderedCell!, 'above');
-			container.classList.remove(DRAGOVER_CLASS);
-		}));
 
-		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_ENTER)(event => {
-			event.preventDefault();
-			container.classList.add(DRAGOVER_CLASS);
+			const location = this.getDropInsertLocation(templateData, event);
+			if (location) {
+				this.notebookEditor.moveCell(draggedCell, templateData.currentRenderedCell!, location);
+				container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
+			}
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_LEAVE)(event => {
 			if (!event.relatedTarget || !DOM.isAncestor(event.relatedTarget as HTMLElement, container)) {
-				container.classList.remove(DRAGOVER_CLASS);
+				container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
 			}
 		}));
+	}
+
+	private getDropInsertLocation(templateData: BaseCellRenderTemplate, event: DragEvent): 'above' | 'below' | undefined {
+		if (templateData.currentRenderedCell === this.currentDraggedCell) {
+			return;
+		}
+
+		const dragOffset = this.getDragOffset(templateData.container, event);
+		if (dragOffset < 0.3) {
+			return 'above';
+		} else if (dragOffset >= 0.5) {
+			return 'below';
+		} else {
+			return;
+		}
+	}
+
+	private getDragOffset(container: HTMLElement, event: DragEvent): number {
+		const containerRect = container.getBoundingClientRect();
+		const dragoverContainerY = event.clientY - containerRect.top;
+		return dragoverContainerY / containerRect.height;
 	}
 }
 
@@ -645,8 +690,8 @@ class EditorTextRenderer {
 }
 
 class CodeCellDragImageRenderer {
-	getDragImage(templateData: CodeCellRenderTemplate): HTMLElement {
-		let dragImage = this._getDragImage(templateData);
+	getDragImage(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement {
+		let dragImage = this._getDragImage(templateData, editor, type);
 		if (!dragImage) {
 			// TODO@roblourens I don't think this can happen
 			dragImage = document.createElement('div');
@@ -656,8 +701,8 @@ class CodeCellDragImageRenderer {
 		return dragImage;
 	}
 
-	private _getDragImage(templateData: CodeCellRenderTemplate): HTMLElement | null {
-		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.code-cell-row');
+	private _getDragImage(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
+		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
 		dragImageContainer.innerHTML = templateData.container.innerHTML;
 
 		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
@@ -670,7 +715,7 @@ class CodeCellDragImageRenderer {
 			focusIndicator.style.height = '40px';
 		}
 
-		const richEditorText = new EditorTextRenderer().getRichText(templateData.editor, new Range(1, 1, 1, 1000));
+		const richEditorText = new EditorTextRenderer().getRichText(editor, new Range(1, 1, 1, 1000));
 		if (!richEditorText) {
 			return null;
 		}
@@ -759,12 +804,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 
-		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
+		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-top'));
 		const outputContainer = DOM.append(container, $('.output'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		const templateData: CodeCellRenderTemplate = {
-			insertionIndicatorTop,
 			container,
 			cellContainer,
 			statusBarContainer: statusBar.statusBarContainer,
@@ -785,7 +829,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			toJSON: () => { return {}; }
 		};
 
-		this.dndController.addListeners(templateData, () => new CodeCellDragImageRenderer().getDragImage(templateData));
+		this.dndController.addListeners(templateData, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 		return templateData;
 	}
 
