@@ -2127,4 +2127,40 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region eamodio - Open in background: https://github.com/microsoft/vscode/issues/96964
+
+	export interface TextEditorOpenOptions {
+		/**
+		 * An optional view column in which the [editor](#TextEditor) should be shown.
+		 * The default is the [active](#ViewColumn.Active), other values are adjusted to
+		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
+		 * not adjusted. Use [`ViewColumn.Beside`](#ViewColumn.Beside) to open the
+		 * editor to the side of the currently active one.
+		 */
+		viewColumn?: ViewColumn;
+
+		/**
+		 * An optional flag that when `true` will stop the [editor](#TextEditor) from taking focus.
+		 */
+		preserveFocus?: boolean;
+
+		/**
+		 * An optional flag that controls if an [editor](#TextEditor)-tab will be replaced
+		 * with the next editor or if it will be kept.
+		 */
+		preview?: boolean;
+
+		/**
+		 * An optional selection to apply for the document in the [editor](#TextEditor).
+		 */
+		selection?: Range;
+
+		/**
+		 * An optional flag that controls if an [editor](#TextEditor)-tab will be opened in the background.
+		 */
+		background?: boolean
+	}
+
+	//#endregion
 }

@@ -1153,15 +1153,16 @@ export namespace FoldingRangeKind {
 	}
 }
 
-export namespace TextEditorOptions {
+export namespace TextEditorOpenOptions {
 
-	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions | undefined {
+	export function from(options?: vscode.TextEditorOpenOptions): ITextEditorOptions | undefined {
 		if (options) {
 			return {
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				inactive: options.background,
 				preserveFocus: options.preserveFocus,
-				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
-			} as ITextEditorOptions;
+				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+			};
 		}
 
 		return undefined;
