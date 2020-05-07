@@ -78,6 +78,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabResourceLabels: ResourceLabels;
 	private tabLabels: IEditorInputLabel[] = [];
 	private tabDisposables: IDisposable[] = [];
+	private tabs: HTMLElement[] = [];
 
 	private dimension: Dimension | undefined;
 	private readonly layoutScheduled = this._register(new MutableDisposable());
@@ -370,8 +371,10 @@ export class TabsTitleControl extends TitleControl {
 
 		// Create tabs as needed
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
-		for (let i = tabsContainer.children.length; i < this.group.count; i++) {
-			tabsContainer.appendChild(this.createTab(i, tabsContainer, tabsScrollbar));
+		for (let i = this.tabs.length; i < this.group.count; i++) {
+			const tab = this.createTab(i, tabsContainer, tabsScrollbar);
+			this.tabs.push(tab);
+			tabsContainer.appendChild(tab);
 		}
 
 		// An add of a tab requires to recompute all labels
@@ -398,11 +401,11 @@ export class TabsTitleControl extends TitleControl {
 		if (this.group.activeEditor) {
 
 			// Remove tabs that got closed
-			const tabsContainer = assertIsDefined(this.tabsContainer);
-			while (tabsContainer.children.length > this.group.count) {
+			while (this.tabs.length > this.group.count) {
+				const tab = this.tabs.pop()!;
 
 				// Remove one tab from container (must be the last to keep indexes in order!)
-				(tabsContainer.lastChild as HTMLElement).remove();
+				tab.remove();
 
 				// Remove associated tab label and widget
 				dispose(this.tabDisposables.pop());
@@ -546,8 +549,8 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doWithTab(index: number, editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
-		const tabsContainer = assertIsDefined(this.tabsContainer);
-		const tabContainer = tabsContainer.children[index] as HTMLElement;
+		assertIsDefined(this.tabsContainer);
+		const tabContainer = this.tabs[index] as HTMLElement;
 		const tabResourceLabel = this.tabResourceLabels.get(index);
 		const tabLabel = this.tabLabels[index];
 		if (tabContainer && tabResourceLabel && tabLabel) {
@@ -702,7 +705,7 @@ export class TabsTitleControl extends TitleControl {
 				if (target) {
 					handled = true;
 					this.group.openEditor(target, { preserveFocus: true });
-					(<HTMLElement>tabsContainer.childNodes[targetIndex]).focus();
+					this.tabs[targetIndex].focus();
 				}
 			}
 
@@ -1356,9 +1359,9 @@ export class TabsTitleControl extends TitleControl {
 	private getTabAndIndex(editor: IEditorInput): [HTMLElement, number /* index */] | undefined {
 		const editorIndex = this.group.getIndexOfEditor(editor);
 		if (editorIndex >= 0) {
-			const tabsContainer = assertIsDefined(this.tabsContainer);
+			assertIsDefined(this.tabsContainer);
 
-			return [tabsContainer.children[editorIndex] as HTMLElement, editorIndex];
+			return [this.tabs[editorIndex], editorIndex];
 		}
 
 		return undefined;
