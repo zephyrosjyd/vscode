@@ -73,3 +73,12 @@
 	font-size: 12px;
 	position: absolute;
 }
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
+	transition: margin-left 0.15s ease-out;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dnd {
+	position: absolute;
+	top: 0;
+}

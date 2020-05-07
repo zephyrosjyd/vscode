@@ -32,7 +32,7 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
+import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -41,10 +41,13 @@ import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumb
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { basenameOrAuthority } from 'vs/base/common/resources';
+import { basenameOrAuthority, basename } from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
+import { domEvent } from 'vs/base/browser/event';
+import { binarySearch } from 'vs/base/common/arrays';
+import { Event } from 'vs/base/common/event';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -54,6 +57,16 @@ interface IEditorInputLabel {
 }
 
 type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
+
+interface IDndState {
+	readonly tabOffsets: readonly number[];
+	readonly offset: number;
+	readonly tabContainer: HTMLElement;
+	readonly tabWidth: number;
+	previousPosition: number | undefined;
+	previousTabIndex: number | undefined;
+	previousTab: HTMLElement | undefined;
+}
 
 export class TabsTitleControl extends TitleControl {
 
@@ -85,6 +98,9 @@ export class TabsTitleControl extends TitleControl {
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
+
+	private static draggedTabContainer: HTMLElement | undefined;
+	private dnd: IDndState | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -256,6 +272,85 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		this._register(domEvent(window, 'dragover', true)(e => {
+			if (!isAncestor(e.target as Node, tabsContainer)) {
+				if (this.dnd) {
+					if (this.dnd.previousTab) {
+						this.dnd.previousTab.style.marginLeft = `0`;
+					}
+
+					this.dnd.previousTabIndex = undefined;
+					this.dnd.previousTab = undefined;
+				}
+
+				return;
+			}
+
+			if (!this.dnd) {
+				let tabOffset = 0;
+				const tabOffsets = [];
+
+				for (let i = 0; i < tabsContainer.children.length; i++) {
+					tabOffset += (tabsContainer.children[i] as HTMLElement).offsetWidth;
+					tabOffsets.push(tabOffset);
+				}
+
+				let tabContainer: HTMLElement;
+
+				if (this.draggedTabContainer) {
+					tabContainer = this.draggedTabContainer;
+				} else {
+					const tab = this.createTabContainer();
+					tab.editorLabel.setLabel('new tab', '', { extraClasses: ['tab-label'] });
+
+					tabContainer = tab.tabContainer;
+					this.tabsContainer?.appendChild(tabContainer);
+				}
+
+				tabContainer.classList.add('dnd');
+				const tabWidth = tabContainer.offsetWidth;
+
+				const rect = tabsContainer.getBoundingClientRect();
+				this.dnd = { tabOffsets, offset: rect.left, previousPosition: undefined, previousTabIndex: undefined, previousTab: undefined, tabContainer, tabWidth };
+			}
+
+			const position = e.pageX - this.dnd.offset;
+
+			if (position === this.dnd.previousPosition) {
+				return;
+			}
+
+			this.dnd.previousPosition = position;
+
+			let index = binarySearch(this.dnd.tabOffsets, position, (a, b) => a - b);
+
+			if (index < 0) {
+				index = ~index;
+			}
+
+			if (index === this.dnd.previousTabIndex) {
+				return;
+			}
+
+			this.dnd.previousTabIndex = index;
+
+			if (this.dnd.previousTab) {
+				this.dnd.previousTab.style.marginLeft = `0`;
+			}
+
+			if (index >= tabsContainer.childElementCount) {
+				return;
+			}
+
+			const tab = tabsContainer.children[index] as HTMLElement;
+			tab.style.marginLeft = `${this.dnd.tabWidth}px`;
+			this.dnd.tabContainer.style.left = `${index === 0 ? 0 : this.dnd.tabOffsets[index - 1]}px`;
+
+			this.dnd.previousTab = tab;
+		}));
+
+		this._register(domEvent(window, 'dragend', true)(this.clearDnd, this));
+
 		// Drop support
 		this._register(new DragAndDropObserver(tabsContainer, {
 			onDragEnter: e => {
@@ -315,6 +410,7 @@ export class TabsTitleControl extends TitleControl {
 			onDragEnd: e => {
 				this.updateDropFeedback(tabsContainer, false);
 				removeClass(tabsContainer, 'scroll');
+				this.clearDnd();
 			},
 
 			onDrop: e => {
@@ -558,8 +654,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private createTab(index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): HTMLElement {
-
+	private createTabContainer(): { tabContainer: HTMLElement, tabCloseContainer: HTMLElement, editorLabel: IResourceLabel } {
 		// Tab Container
 		const tabContainer = document.createElement('div');
 		tabContainer.draggable = true;
@@ -587,6 +682,15 @@ export class TabsTitleControl extends TitleControl {
 		const tabBorderBottomContainer = document.createElement('div');
 		addClass(tabBorderBottomContainer, 'tab-border-bottom-container');
 		tabContainer.appendChild(tabBorderBottomContainer);
+
+		return { tabContainer, tabCloseContainer, editorLabel };
+	}
+
+	private createTab(index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): HTMLElement {
+		const { tabContainer, tabCloseContainer, editorLabel } = this.createTabContainer();
+
+		// Gesture Support
+		this._register(Gesture.addTarget(tabContainer));
 
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
@@ -629,7 +733,7 @@ export class TabsTitleControl extends TitleControl {
 			return undefined;
 		};
 
-		const showContextMenu = (e: Event) => {
+		const showContextMenu = (e: KeyboardEvent | GestureEvent) => {
 			EventHelper.stop(e);
 
 			const input = this.group.getEditorByIndex(index);
@@ -738,7 +842,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// Context menu
-		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: Event) => {
+		disposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, e => {
 			EventHelper.stop(e, true);
 
 			const input = this.group.getEditorByIndex(index);
@@ -748,7 +852,7 @@ export class TabsTitleControl extends TitleControl {
 		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
 
 		// Drag support
-		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
+		disposables.add(addDisposableListener(tab, 'dragstart', e => {
 			const editor = this.group.getEditorByIndex(index);
 			if (!editor) {
 				return;
@@ -763,75 +867,91 @@ export class TabsTitleControl extends TitleControl {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.doFillResourceDataTransfers(editor, e);
 
-			// Fixes https://github.com/Microsoft/vscode/issues/18733
-			addClass(tab, 'dragged');
-			scheduleAtNextAnimationFrame(() => removeClass(tab, 'dragged'));
+			if (e.dataTransfer) {
+				const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+				const label = resource ? basename(resource) : 'tab';
+				const dragImage = document.createElement('div');
+				dragImage.classList.add('monaco-drag-image');
+				dragImage.textContent = label;
+				document.body.appendChild(dragImage);
+				e.dataTransfer.setDragImage(dragImage, -10, -10);
+				setTimeout(() => document.body.removeChild(dragImage), 0);
+			}
+
+			this.draggedTabContainer = tab;
+
+			Event.once(domEvent(window, 'dragend'))(() => {
+				if (this.draggedTabContainer) {
+					this.draggedTabContainer.classList.remove('dnd');
+					this.draggedTabContainer = undefined;
+				}
+			});
 		}));
 
 		// Drop support
-		disposables.add(new DragAndDropObserver(tab, {
-			onDragEnter: e => {
+		// disposables.add(new DragAndDropObserver(tab, {
+		// 	onDragEnter: e => {
 
-				// Update class to signal drag operation
-				addClass(tab, 'dragged-over');
+		// 		// Update class to signal drag operation
+		// 		addClass(tab, 'dragged-over');
 
-				// Return if transfer is unsupported
-				if (!this.isSupportedDropTransfer(e)) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'none';
-					}
+		// 		// Return if transfer is unsupported
+		// 		if (!this.isSupportedDropTransfer(e)) {
+		// 			if (e.dataTransfer) {
+		// 				e.dataTransfer.dropEffect = 'none';
+		// 			}
 
-					return;
-				}
+		// 			return;
+		// 		}
 
-				// Return if dragged editor is the current tab dragged over
-				let isLocalDragAndDrop = false;
-				if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
-					isLocalDragAndDrop = true;
+		// 		// Return if dragged editor is the current tab dragged over
+		// 		let isLocalDragAndDrop = false;
+		// 		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+		// 			isLocalDragAndDrop = true;
 
-					const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
-					if (Array.isArray(data)) {
-						const localDraggedEditor = data[0].identifier;
-						if (localDraggedEditor.editor === this.group.getEditorByIndex(index) && localDraggedEditor.groupId === this.group.id) {
-							if (e.dataTransfer) {
-								e.dataTransfer.dropEffect = 'none';
-							}
+		// 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+		// 			if (Array.isArray(data)) {
+		// 				const localDraggedEditor = data[0].identifier;
+		// 				if (localDraggedEditor.editor === this.group.getEditorByIndex(index) && localDraggedEditor.groupId === this.group.id) {
+		// 					if (e.dataTransfer) {
+		// 						e.dataTransfer.dropEffect = 'none';
+		// 					}
 
-							return;
-						}
-					}
-				}
+		// 					return;
+		// 				}
+		// 			}
+		// 		}
 
-				// Update the dropEffect to "copy" if there is no local data to be dragged because
-				// in that case we can only copy the data into and not move it from its source
-				if (!isLocalDragAndDrop) {
-					if (e.dataTransfer) {
-						e.dataTransfer.dropEffect = 'copy';
-					}
-				}
+		// 		// Update the dropEffect to "copy" if there is no local data to be dragged because
+		// 		// in that case we can only copy the data into and not move it from its source
+		// 		if (!isLocalDragAndDrop) {
+		// 			if (e.dataTransfer) {
+		// 				e.dataTransfer.dropEffect = 'copy';
+		// 			}
+		// 		}
 
-				this.updateDropFeedback(tab, true, index);
-			},
+		// 		this.updateDropFeedback(tab, true, index);
+		// 	},
 
-			onDragLeave: e => {
-				removeClass(tab, 'dragged-over');
-				this.updateDropFeedback(tab, false, index);
-			},
+		// 	onDragLeave: e => {
+		// 		removeClass(tab, 'dragged-over');
+		// 		this.updateDropFeedback(tab, false, index);
+		// 	},
 
-			onDragEnd: e => {
-				removeClass(tab, 'dragged-over');
-				this.updateDropFeedback(tab, false, index);
+		// 	onDragEnd: e => {
+		// 		removeClass(tab, 'dragged-over');
+		// 		this.updateDropFeedback(tab, false, index);
 
-				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
-			},
+		// 		this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+		// 	},
 
-			onDrop: e => {
-				removeClass(tab, 'dragged-over');
-				this.updateDropFeedback(tab, false, index);
+		// 	onDrop: e => {
+		// 		removeClass(tab, 'dragged-over');
+		// 		this.updateDropFeedback(tab, false, index);
 
-				this.onDrop(e, index, tabsContainer);
-			}
-		}));
+		// 		this.onDrop(e, index, tabsContainer);
+		// 	}
+		// }));
 
 		return disposables;
 	}
@@ -1200,6 +1320,8 @@ export class TabsTitleControl extends TitleControl {
 	layout(dimension: Dimension | undefined): void {
 		this.dimension = dimension;
 
+		this.clearDnd();
+
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
 		if (!activeTabAndIndex || !this.dimension) {
 			return;
@@ -1216,6 +1338,20 @@ export class TabsTitleControl extends TitleControl {
 				this.layoutScheduled.clear();
 			});
 		}
+	}
+
+	private clearDnd(): void {
+		if (!this.dnd) {
+			return;
+		}
+
+		// this.dnd.placeholderTab.tabContainer.remove();
+
+		if (this.dnd.previousTab) {
+			this.dnd.previousTab.style.marginLeft = `0`;
+		}
+
+		this.dnd = undefined;
 	}
 
 	private doLayout(dimension: Dimension): void {
