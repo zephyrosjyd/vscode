@@ -1427,6 +1427,18 @@
           "default": null,
           "description": "%config.defaultCloneDirectory%"
         },
+        "git.useEditorToCommit": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.useEditorToCommit%",
+          "default": false
+        },
+        "git.verboseCommit": {
+          "type": "boolean",
+          "scope": "resource",
+          "description": "%config.verboseCommit%",
+          "default": false
+        },
         "git.enableSmartCommit": {
           "type": "boolean",
           "scope": "resource",
