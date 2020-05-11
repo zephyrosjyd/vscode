@@ -243,15 +243,15 @@ steps:
     SessionTimeout: 60
   displayName: Notarization
 
-- script: |
-    set -e
-    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-    AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
-    ./build/azure-pipelines/darwin/publish.sh
-  displayName: Publish
+# - script: |
+#     # set -e
+#     # VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+#     # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+#     # AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+#     # AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+#     # VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
+#     # ./build/azure-pipelines/darwin/publish.sh
+#   displayName: Publish
 
 - script: |
     yarn gulp upload-vscode-configuration

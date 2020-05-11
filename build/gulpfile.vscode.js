@@ -458,7 +458,7 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'Visual\\ Studio\\ Code\\ -\\ Insiders.app' : 'Visual\\ Studio\\ Code.app';
 		const appPath = path.join(buildDir, `VSCode-darwin/${appName}/Contents/Resources/app/bin/code`);
 		const codeProc = cp.exec(
-			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
+			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --verbose --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
 			(err, stdout, stderr) => {
 				clearTimeout(timer);
 				if (err) {
@@ -474,7 +474,9 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 					console.log(`stderr: ${stderr}`);
 				}
 
-				resolve();
+				new Promise(res => {
+					setTimeout(res, 4000);
+				}).then(resolve);
 			}
 		);
 		const timer = setTimeout(() => {
@@ -510,20 +512,21 @@ gulp.task(task.define(
 				throw new Error('Failed to compute build number');
 			}
 
-			return gulp.src(allConfigDetailsPath)
-				.pipe(azure.upload({
-					account: process.env.AZURE_STORAGE_ACCOUNT,
-					key: process.env.AZURE_STORAGE_ACCESS_KEY,
-					container: 'configuration',
-					prefix: `${settingsSearchBuildId}/${commit}/`
-				}));
+			// return gulp.src(allConfigDetailsPath)
+			// 	.pipe(azure.upload({
+			// 		account: process.env.AZURE_STORAGE_ACCOUNT,
+			// 		key: process.env.AZURE_STORAGE_ACCESS_KEY,
+			// 		container: 'configuration',
+			// 		prefix: `${settingsSearchBuildId}/${commit}/`
+			// 	}));
 		}
 	)
 ));
 
 function shouldSetupSettingsSearch() {
-	const branch = process.env.BUILD_SOURCEBRANCH;
-	return branch && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
+	return true;
+	// const branch = process.env.BUILD_SOURCEBRANCH;
+	// return branch && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
 }
 
 function getSettingsSearchBuildId(packageJson) {
