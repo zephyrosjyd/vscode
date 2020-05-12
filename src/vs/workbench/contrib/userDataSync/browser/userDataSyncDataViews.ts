@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -23,6 +23,7 @@ import { AccountStatus } from 'vs/workbench/contrib/userDataSync/browser/userDat
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class UserDataSyncDataViewsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -92,8 +93,12 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const viewsService = accessor.get(IViewsService);
-				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);
+				const commandService = accessor.get(ICommandService);
+
+				await commandService.executeCommand(SHOW_SYNC_STATUS_COMMAND_ID);
 				viewEnablementContext.set(true);
+
+				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);
 				if (viewContainer) {
 					const model = viewDescriptorService.getViewContainerModel(viewContainer);
 					if (model.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
