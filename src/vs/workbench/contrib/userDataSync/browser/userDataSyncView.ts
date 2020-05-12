@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { UserDataSyncAccounts } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
-import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, SHOW_SYNC_LOG_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, SHOW_SYNC_LOG_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
@@ -23,11 +23,12 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { IAction, Action } from 'vs/base/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Link } from 'vs/platform/opener/browser/link';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -37,7 +38,8 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 		icon: HTMLElement,
 		name: HTMLElement,
 		status: HTMLElement,
-		turnOffButton: Button,
+		turnOnButton: Button,
+		turnOffLink: Link,
 	};
 
 	constructor(
@@ -89,14 +91,19 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 		const name = DOM.append(accountDetails, DOM.$(`.sync-account-name`));
 		const status = DOM.append(accountDetails, DOM.$(`.sync-status`));
 
-		const turnOffButton = this._register(new Button(container));
-		turnOffButton.label = localize('turn off', "Turn off Preferences Sync...");
-		turnOffButton.enabled = false;
-		this._register(turnOffButton.onDidClick(_ => this.commandService.executeCommand(TURN_OFF_SYNC_COMMAND_ID)));
-		this._register(attachButtonStyler(turnOffButton, this.themeService));
+		const turnOnButton = this._register(new Button(container));
+		turnOnButton.label = localize('turn on', "Turn on Preferences Sync");
+		turnOnButton.enabled = false;
+		this._register(turnOnButton.onDidClick(_ => this.commandService.executeCommand(TURN_ON_SYNC_COMMAND_ID)));
+		this._register(attachButtonStyler(turnOnButton, this.themeService));
+
+		const turnOffLink = this._register(this.instantiationService.createInstance(Link, { label: localize('turn off', "Turn off Preferences Sync"), href: `command:${TURN_OFF_SYNC_COMMAND_ID}` }));
+		DOM.append(container, turnOffLink.el);
+		DOM.addClass(turnOffLink.el, 'disabled');
+		this._register(attachLinkStyler(turnOffLink, this.themeService));
 
 		this.accountTemplate = {
-			container, title, icon, name, status, turnOffButton
+			container, title, icon, name, status, turnOnButton, turnOffLink
 		};
 
 		this.update();
@@ -109,19 +116,19 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 	private update(): void {
 		const activeAccount = this.userDataSyncAccounts.current;
 		if (activeAccount) {
-			if (this.userDataSyncEnablementService.isEnabled()) {
-				this.accountTemplate.title.textContent = localize('account title', "Syncing to your {0} account", this.authenticationService.getDisplayName(activeAccount.authenticationProviderId));
-				this.accountTemplate.name.textContent = activeAccount.accountName;
-				this.accountTemplate.turnOffButton.enabled = true;
-				this.updateStatus();
-			}
+			const isEnabled = this.userDataSyncEnablementService.isEnabled();
+			this.accountTemplate.title.textContent = isEnabled ?
+				localize('sync account title', "Syncing to your {0} account", this.authenticationService.getDisplayName(activeAccount.authenticationProviderId))
+				: localize('signed in account title', "Signed in with your {0} account", this.authenticationService.getDisplayName(activeAccount.authenticationProviderId));
+			this.accountTemplate.name.textContent = activeAccount.accountName;
+			this.updateStatus();
+			this.accountTemplate.turnOnButton.enabled = !isEnabled;
+			DOM.toggleClass(this.accountTemplate.turnOffLink.el, 'disabled', !isEnabled);
 		}
 	}
 
 	private updateStatus(): void {
-		if (this.userDataSyncEnablementService.isEnabled()) {
-			this.accountTemplate.status.textContent = this.getSyncStatusLabel();
-		}
+		this.accountTemplate.status.textContent = this.getSyncStatusLabel();
 	}
 
 	private async autoUpdateStatus(): Promise<void> {
@@ -131,6 +138,9 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 	}
 
 	private getSyncStatusLabel(): string {
+		if (!this.userDataSyncEnablementService.isEnabled()) {
+			return localize('not sycing', "Not syncing");
+		}
 		if (this.userDataSyncService.status === SyncStatus.Syncing) {
 			return localize('sync is on with syncing', "Syncing...");
 		}
