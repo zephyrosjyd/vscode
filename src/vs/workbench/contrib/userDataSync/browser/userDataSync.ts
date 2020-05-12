@@ -19,13 +19,13 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
@@ -52,7 +52,7 @@ import { UserDataSyncAccounts, AccountStatus } from 'vs/workbench/contrib/userDa
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
-import { ViewContainerLocation, IViewContainersRegistry, Extensions } from 'vs/workbench/common/views';
+import { ViewContainerLocation, IViewContainersRegistry, Extensions, IViewsService } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncView';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
@@ -103,6 +103,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private readonly syncStatusContext: IContextKey<string>;
 	private readonly accountStatusContext: IContextKey<string>;
 	private readonly conflictsSources: IContextKey<string>;
+	private readonly viewsEnablementContext: IContextKey<boolean>;
 
 	private readonly userDataSyncAccounts: UserDataSyncAccounts;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -128,6 +129,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
@@ -136,6 +138,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
 		this.conflictsSources = CONTEXT_CONFLICTS_SOURCES.bindTo(contextKeyService);
+		this.viewsEnablementContext = CONTEXT_ENABLE_VIEWS.bindTo(contextKeyService);
 
 		this.userDataSyncAccounts = instantiationService.createInstance(UserDataSyncAccounts);
 
@@ -916,51 +919,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): any {
-				return new Promise((c, e) => {
-					const quickInputService = accessor.get(IQuickInputService);
-					const commandService = accessor.get(ICommandService);
-					const disposables = new DisposableStore();
-					const quickPick = quickInputService.createQuickPick();
-					disposables.add(quickPick);
-					const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
-					if (that.userDataSyncService.conflicts.length) {
-						for (const { syncResource } of that.userDataSyncService.conflicts) {
-							switch (syncResource) {
-								case SyncResource.Settings:
-									items.push({ id: resolveSettingsConflictsCommand.id, label: resolveSettingsConflictsCommand.title });
-									break;
-								case SyncResource.Keybindings:
-									items.push({ id: resolveKeybindingsConflictsCommand.id, label: resolveKeybindingsConflictsCommand.title });
-									break;
-								case SyncResource.Snippets:
-									items.push({ id: resolveSnippetsConflictsCommand.id, label: resolveSnippetsConflictsCommand.title });
-									break;
-							}
-						}
-						items.push({ type: 'separator' });
-					}
-					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
-					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
-					items.push({ id: showSyncActivityCommand.id, label: showSyncActivityCommand.title });
-					items.push({ type: 'separator' });
-					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
-					if (that.userDataSyncEnablementService.canToggleEnablement()) {
-						const account = that.userDataSyncAccounts.current;
-						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getDisplayName(account.authenticationProviderId)})` : undefined });
-					}
-					quickPick.items = items;
-					disposables.add(quickPick.onDidAccept(() => {
-						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
-							commandService.executeCommand(quickPick.selectedItems[0].id);
-						}
-						quickPick.hide();
-					}));
-					disposables.add(quickPick.onDidHide(() => {
-						disposables.dispose();
-						c();
-					}));
-					quickPick.show();
-				});
+				that.viewsEnablementContext.set(true);
+				that.viewsService.openViewContainer(VIEW_CONTAINER_ID);
 			}
 		}));
 	}

@@ -12,7 +12,7 @@ import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeVie
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -26,8 +26,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 
 export class UserDataSyncDataViewsContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly viewsEnablementContext: IContextKey<boolean>;
-
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -35,7 +33,6 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.viewsEnablementContext = CONTEXT_ENABLE_VIEWS.bindTo(contextKeyService);
 		const viewContainer = viewDescriptorService.getViewContainerById(VIEW_CONTAINER_ID);
 		if (viewContainer) {
 			this.registerViews(viewContainer);
@@ -52,7 +49,6 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 	}
 
 	private registerView(container: ViewContainer, remote: boolean): void {
-		const that = this;
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}DataView`;
 		const name = remote ? localize('remote title', "Synced Data") : localize('local title', "Local Backup");
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
@@ -95,7 +91,6 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const viewsService = accessor.get(IViewsService);
 				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);
-				that.viewsEnablementContext.set(true);
 				if (viewContainer) {
 					const model = viewDescriptorService.getViewContainerModel(viewContainer);
 					if (model.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
