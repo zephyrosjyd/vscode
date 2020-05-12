@@ -80,6 +80,7 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	private renderAccount(parent: HTMLElement): void {
 		const container = DOM.append(parent, DOM.$('.sync-account-container'));
+		container.style.height = '123px';
 		const title = DOM.append(container, DOM.$('.sync-account-title'));
 		const accountInfo = DOM.append(container, DOM.$('.sync-account-info'));
 
