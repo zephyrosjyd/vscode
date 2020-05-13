@@ -11,7 +11,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
-import { registerAction2, Action2, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -197,41 +197,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 	}
 
 	private registerRemoteViewActions(view: TreeView) {
-		ALL_SYNC_RESOURCES.forEach((resource, index) => this.registerSyncActionForResource(view.id, resource, index));
 		this.registerResetAction(view);
-	}
-
-	private registerSyncActionForResource(viewId: string, resource: SyncResource, order: number) {
-		const resourceSyncEnabledContextKey = new RawContextKey<boolean>(`sync.enabled.${resource}`, this.userDataSyncEnablementService.isResourceEnabled(resource));
-		const resourceSyncEnabledContext = resourceSyncEnabledContextKey.bindTo(this.contextKeyService);
-		this.userDataSyncEnablementService.onDidChangeResourceEnablement(() => resourceSyncEnabledContext.set(this.userDataSyncEnablementService.isResourceEnabled(resource)));
-		const id = `workbench.actions.toggleSync.${resource}`;
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id,
-					title: localize('workbench.actions.sync.toggleResource', "Sync"),
-					menu: {
-						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyEqualsExpr.create('viewItem', resource), CONTEXT_SYNC_ENABLEMENT),
-					},
-					toggled: resourceSyncEnabledContextKey
-				});
-			}
-			async run(accessor: ServicesAccessor): Promise<void> {
-				accessor.get(IUserDataSyncEnablementService).setResourceEnablement(resource, !resourceSyncEnabledContext.get());
-			}
-		});
-		MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-			command: {
-				id,
-				title: getSyncAreaLabel(resource),
-				toggled: resourceSyncEnabledContextKey
-			},
-			when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), CONTEXT_SYNC_ENABLEMENT),
-			group: '1_sync',
-			order
-		});
 	}
 
 	private registerResetAction(view: TreeView) {

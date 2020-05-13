@@ -52,8 +52,8 @@ import { UserDataSyncAccounts, AccountStatus } from 'vs/workbench/contrib/userDa
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
-import { ViewContainerLocation, IViewContainersRegistry, Extensions, IViewsService } from 'vs/workbench/common/views';
-import { UserDataSyncViewPaneContainer } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncView';
+import { ViewContainerLocation, IViewContainersRegistry, Extensions, IViewsService, ViewContainer, IViewsRegistry } from 'vs/workbench/common/views';
+import { UserDataSyncViewPaneContainer, UserDataSyncManageView } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncView';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -158,7 +158,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(this.userDataSyncAccounts.onDidChangeStatus(status => this.onDidChangeAccountStatus(status)));
 			this._register(this.userDataSyncAccounts.onDidSignOut(() => this.doTurnOff(false)));
 			this.registerActions();
-			this.registerViewContainer();
+			this.registerViews();
 
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
 			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
@@ -1037,8 +1037,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}));
 	}
 
-	private registerViewContainer(): void {
-		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+	private registerViews(): void {
+		const container = this.registerViewContainer();
+		this.registerConfigureSyncView(container);
+	}
+
+	private registerViewContainer(): ViewContainer {
+		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: VIEW_CONTAINER_ID,
 				name: localize('sync preferences', "Preferences Sync"),
@@ -1049,6 +1054,20 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				icon: Codicon.sync.classNames,
 				hideIfEmpty: true,
 			}, ViewContainerLocation.Sidebar);
+	}
+
+	private registerConfigureSyncView(container: ViewContainer): void {
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewsRegistry.registerViews([{
+			id: 'workbench.views.sync.manage',
+			name: localize('configure', "Manage Sync"),
+			ctorDescriptor: new SyncDescriptor(UserDataSyncManageView),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_VIEWS),
+			canToggleVisibility: true,
+			canMoveView: true,
+			collapsed: false,
+			order: 1,
+		}], container);
 	}
 
 }

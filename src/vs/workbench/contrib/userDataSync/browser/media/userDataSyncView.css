@@ -40,3 +40,11 @@
 .sync-view-container .sync-account-container .disabled {
 	display: none;
 }
+
+.sync-manage-view .sync-resource-container {
+	padding-left: 20px;
+}
+
+.sync-manage-view .sync-resource-container .name {
+	padding-left: 5px;
+}

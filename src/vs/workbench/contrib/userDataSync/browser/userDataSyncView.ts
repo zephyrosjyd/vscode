@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/userDataSyncView';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPaneContainer, ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import * as DOM from 'vs/base/browser/dom';
@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { UserDataSyncAccounts } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
-import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, SHOW_SYNC_LOG_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, MANAGE_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, SHOW_SYNC_LOG_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, ALL_SYNC_RESOURCES, SyncResource, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
@@ -29,6 +29,14 @@ import { timeout } from 'vs/base/common/async';
 import { IAction, Action } from 'vs/base/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Link } from 'vs/platform/opener/browser/link';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { IListRenderer } from 'vs/base/browser/ui/list/list';
+import { Gesture } from 'vs/base/browser/touch';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -66,7 +74,6 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 	getActions(): IAction[] {
 		return [
 			new Action('showSyncLog', localize('showLog', "Show Log"), Codicon.output.classNames, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
-			new Action('manageSync', localize('configure', "Configure..."), Codicon.settingsGear.classNames, true, () => this.commandService.executeCommand(MANAGE_SYNC_COMMAND_ID))
 		];
 	}
 
@@ -150,4 +157,129 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 		return '';
 	}
 
+}
+
+export class UserDataSyncManageView extends ViewPane {
+
+	private list!: WorkbenchList<SyncResource>;
+
+	constructor(
+		options: IViewPaneOptions,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+	}
+
+	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		DOM.addClass(container, 'sync-manage-view');
+
+		this.list = this._register(<WorkbenchList<SyncResource>>this.instantiationService.createInstance(WorkbenchList, 'ManageSync', container, {
+			getHeight(): number { return 22; },
+			getTemplateId(): string { return SyncResourceRenderer.ID; }
+		}, [
+			this.instantiationService.createInstance(SyncResourceRenderer),
+		], {
+			identityProvider: { getId: (element: SyncResource) => element },
+			multipleSelectionSupport: false,
+			accessibilityProvider: new SyncResourceAccessibilityProvider(this.userDataSyncEnablementService),
+			overrideStyles: {
+				listBackground: this.getBackgroundColor()
+			}
+		}));
+
+		this.list.splice(0, 0, ALL_SYNC_RESOURCES);
+
+	}
+
+	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this.list.layout(height, width);
+	}
+
+}
+
+interface SyncResourceTemplateData {
+	name: HTMLElement;
+	checkbox: HTMLInputElement;
+	syncResource: SyncResource | null;
+	disposable: DisposableStore;
+}
+
+class SyncResourceRenderer implements IListRenderer<SyncResource, SyncResourceTemplateData> {
+
+	constructor(
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+	) {
+	}
+
+	static readonly ID = 'syncresources';
+
+	get templateId() { return SyncResourceRenderer.ID; }
+
+	renderTemplate(parent: HTMLElement): SyncResourceTemplateData {
+
+		const container = DOM.append(parent, DOM.$('.sync-resource-container'));
+
+		const checkbox = DOM.append(container, <HTMLInputElement>DOM.$('input'));
+		checkbox.type = 'checkbox';
+		checkbox.tabIndex = -1;
+		Gesture.ignoreTarget(checkbox);
+
+		const data: SyncResourceTemplateData = {
+			name: DOM.append(container, DOM.$('span.name')),
+			checkbox,
+			syncResource: null,
+			disposable: new DisposableStore()
+		};
+
+		data.disposable.add(DOM.addStandardDisposableListener(data.checkbox, 'change', () => {
+			if (data.syncResource) {
+				this.userDataSyncEnablementService.setResourceEnablement(data.syncResource, !this.userDataSyncEnablementService.isResourceEnabled(data.syncResource));
+			}
+		}));
+
+		return data;
+	}
+
+	renderElement(syncResource: SyncResource, index: number, data: SyncResourceTemplateData): void {
+		data.syncResource = syncResource;
+		data.name.textContent = getSyncAreaLabel(syncResource);
+		data.checkbox.checked = this.userDataSyncEnablementService.isResourceEnabled(syncResource);
+	}
+
+	disposeTemplate(templateData: SyncResourceTemplateData): void {
+		templateData.disposable.dispose();
+	}
+}
+
+class SyncResourceAccessibilityProvider implements IListAccessibilityProvider<SyncResource> {
+
+	constructor(private readonly userDataSyncEnablementService: IUserDataSyncEnablementService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('syncresource', "Sync Resource");
+	}
+
+	getRole() {
+		return 'checkbox';
+	}
+
+	isChecked(resource: SyncResource) {
+		return this.userDataSyncEnablementService.isResourceEnabled(resource);
+	}
+
+	getAriaLabel(element: SyncResource): string | null {
+		return getSyncAreaLabel(element);
+	}
 }
