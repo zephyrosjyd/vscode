@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -52,7 +52,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		this.registerView(container, false, false);
 	}
 
-	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): string {
+	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): TreeView {
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}DataView`;
 		const showByDefaultContext = new RawContextKey<boolean>(id, showByDefault);
 		const viewEnablementContext = showByDefaultContext.bindTo(this.contextKeyService);
@@ -120,7 +120,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		});
 
 		this.registerActions(id);
-		return id;
+		return treeView;
 	}
 
 	private registerActions(viewId: string) {
@@ -196,8 +196,9 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		});
 	}
 
-	private registerRemoteViewActions(viewId: string) {
-		ALL_SYNC_RESOURCES.forEach((resource, index) => this.registerSyncActionForResource(viewId, resource, index));
+	private registerRemoteViewActions(view: TreeView) {
+		ALL_SYNC_RESOURCES.forEach((resource, index) => this.registerSyncActionForResource(view.id, resource, index));
+		this.registerResetAction(view);
 	}
 
 	private registerSyncActionForResource(viewId: string, resource: SyncResource, order: number) {
@@ -228,7 +229,37 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 				toggled: resourceSyncEnabledContextKey
 			},
 			when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), CONTEXT_SYNC_ENABLEMENT),
+			group: '1_sync',
 			order
+		});
+	}
+
+	private registerResetAction(view: TreeView) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.syncData.reset`,
+					title: localize('workbench.actions.syncData.reset', "Reset"),
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', view.id)),
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				const dialogService = accessor.get(IDialogService);
+				const result = await dialogService.confirm({
+					message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
+					title: localize('reset title', "Reset Synced Data"),
+					type: 'info',
+					primaryButton: localize('reset button', "Reset"),
+				});
+				if (result.confirmed) {
+					await commandService.executeCommand(TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID);
+					await view.refresh();
+				}
+			}
 		});
 	}
 }

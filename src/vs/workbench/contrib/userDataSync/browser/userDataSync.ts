@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT,
-	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, SHOW_SYNC_LOG_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, SHOW_SYNC_STATUS_COMMAND_ID
+	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, SHOW_SYNC_LOG_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, SHOW_SYNC_STATUS_COMMAND_ID, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -616,11 +616,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return;
 		}
 		if (turnOffEveryWhere) {
-			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
-			await this.userDataSyncService.reset();
+			await this.turnOffEveryWhere();
 		} else {
 			await this.userDataSyncService.resetLocal();
+			this.disableSync();
 		}
+	}
+
+	private async turnOffEveryWhere(): Promise<void> {
+		this.telemetryService.publicLog2('sync/turnOffEveryWhere');
+		await this.userDataSyncService.reset();
 		this.disableSync();
 	}
 
@@ -965,6 +970,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						that.notificationService.error(localize('turn off failed', "Error while turning off sync: {0}", toErrorMessage(e)));
 					}
 				}
+			}
+		}));
+		this._register(registerAction2(class TurnOffEveryWhereAction extends Action2 {
+			constructor() {
+				super({
+					id: TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID,
+					title: turnOffSyncCommand.title,
+				});
+			}
+			run(): Promise<any> {
+				return that.turnOffEveryWhere();
 			}
 		}));
 	}

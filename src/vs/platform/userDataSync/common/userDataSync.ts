@@ -396,6 +396,7 @@ export function getSyncAreaLabel(source: SyncResource): string {
 // Commands
 export const TURN_ON_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOn';
 export const TURN_OFF_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOff';
+export const TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOffEveryWhere';
 export const SHOW_SYNC_STATUS_COMMAND_ID = 'workbench.userData.actions.syncStatus';
 export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
 export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';
