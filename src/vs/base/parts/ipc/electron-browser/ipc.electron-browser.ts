@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol } from 'vs/base/parts/ipc/node/ipc.electron';
-import { ipcRenderer } from 'electron';
+// import { ipcRenderer } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -15,6 +15,7 @@ export class Client extends IPCClient implements IDisposable {
 	private protocol: Protocol;
 
 	private static createProtocol(): Protocol {
+		const ipcRenderer = (window as any).vscode.ipc;
 		const onMessage = Event.fromNodeEventEmitter<VSBuffer>(ipcRenderer, 'ipc:message', (_, message: Buffer) => VSBuffer.wrap(message));
 		ipcRenderer.send('ipc:hello');
 		return new Protocol(ipcRenderer, onMessage);

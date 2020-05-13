@@ -165,7 +165,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				webPreferences: {
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
-					webviewTag: true
+					webviewTag: true,
+					preload: URI.parse(this.doGetPreloadUrl()).fsPath
 				}
 			};
 
@@ -774,6 +775,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private doGetUrl(config: object): string {
 		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+	}
+
+	private doGetPreloadUrl(): string {
+		return `${require.toUrl('vs/code/electron-browser/workbench/preload.js')}`;
 	}
 
 	serializeWindowState(): IWindowState {
