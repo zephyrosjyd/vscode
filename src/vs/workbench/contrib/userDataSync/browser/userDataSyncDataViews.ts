@@ -10,8 +10,8 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
+import { registerAction2, Action2, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -46,11 +46,13 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 	}
 
 	private registerViews(container: ViewContainer): void {
-		this.registerView(container, true, true);
+		const remoteView = this.registerView(container, true, true);
+		this.registerRemoteViewActions(remoteView);
+
 		this.registerView(container, false, false);
 	}
 
-	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): void {
+	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): string {
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}DataView`;
 		const showByDefaultContext = new RawContextKey<boolean>(id, showByDefault);
 		const viewEnablementContext = showByDefaultContext.bindTo(this.contextKeyService);
@@ -118,6 +120,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		});
 
 		this.registerActions(id);
+		return id;
 	}
 
 	private registerActions(viewId: string) {
@@ -193,6 +196,41 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		});
 	}
 
+	private registerRemoteViewActions(viewId: string) {
+		ALL_SYNC_RESOURCES.forEach((resource, index) => this.registerSyncActionForResource(viewId, resource, index));
+	}
+
+	private registerSyncActionForResource(viewId: string, resource: SyncResource, order: number) {
+		const resourceSyncEnabledContextKey = new RawContextKey<boolean>(`sync.enabled.${resource}`, this.userDataSyncEnablementService.isResourceEnabled(resource));
+		const resourceSyncEnabledContext = resourceSyncEnabledContextKey.bindTo(this.contextKeyService);
+		this.userDataSyncEnablementService.onDidChangeResourceEnablement(() => resourceSyncEnabledContext.set(this.userDataSyncEnablementService.isResourceEnabled(resource)));
+		const id = `workbench.actions.toggleSync.${resource}`;
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id,
+					title: localize('workbench.actions.sync.toggleResource', "Sync"),
+					menu: {
+						id: MenuId.ViewItemContext,
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyEqualsExpr.create('viewItem', resource), CONTEXT_SYNC_ENABLEMENT),
+					},
+					toggled: resourceSyncEnabledContextKey
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				accessor.get(IUserDataSyncEnablementService).setResourceEnablement(resource, !resourceSyncEnabledContext.get());
+			}
+		});
+		MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			command: {
+				id,
+				title: getSyncAreaLabel(resource),
+				toggled: resourceSyncEnabledContextKey
+			},
+			when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), CONTEXT_SYNC_ENABLEMENT),
+			order
+		});
+	}
 }
 
 interface SyncResourceTreeItem extends ITreeItem {
@@ -216,6 +254,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 				label: { label: getSyncAreaLabel(resourceKey) },
 				description: !this.userDataSyncEnablementService.isEnabled() || this.userDataSyncEnablementService.isResourceEnabled(resourceKey) ? undefined : localize('not syncing', "Not syncing"),
 				themeIcon: FolderThemeIcon,
+				contextValue: resourceKey
 			}));
 		}
 		const syncResource = ALL_SYNC_RESOURCES.filter(key => key === element.handle)[0] as SyncResource;

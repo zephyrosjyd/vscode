@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { UserDataSyncAccounts } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
-import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, SHOW_SYNC_LOG_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, SHOW_SYNC_LOG_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
@@ -65,8 +65,7 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	getActions(): IAction[] {
 		return [
-			new Action('showSyncLog', localize('showLog', "Show Log"), Codicon.output.classNames, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
-			new Action('manageSync', localize('configure sync', "Configure..."), Codicon.settingsGear.classNames, true, () => this.commandService.executeCommand(MANAGE_SYNC_COMMAND_ID))
+			new Action('showSyncLog', localize('showLog', "Show Log"), Codicon.output.classNames, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID))
 		];
 	}
 
