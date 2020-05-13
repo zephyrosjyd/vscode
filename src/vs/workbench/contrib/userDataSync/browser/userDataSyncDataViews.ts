@@ -239,7 +239,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: `workbench.actions.syncData.reset`,
-					title: localize('workbench.actions.syncData.reset', "Reset"),
+					title: localize('workbench.actions.syncData.reset', "Reset Synced Data"),
 					menu: {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', view.id)),
