@@ -690,22 +690,28 @@ export class MoveFocusedViewAction extends Action {
 		quickPick.title = nls.localize('moveFocusedView.title', "View: Move {0}", viewDescriptor.name);
 
 		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
+		const currentContainer = this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
+		const currentLocation = this.viewDescriptorService.getViewLocationById(focusedViewId)!;
+		const isViewSolo = this.viewDescriptorService.getViewContainerModel(currentContainer).allViewDescriptors.length === 1;
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
+			items.push({
+				id: '_.panel.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInPanel', "New Panel Entry"),
+			});
+		}
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
+			items.push({
+				id: '_.sidebar.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Side Bar Entry")
+			});
+		}
 
 		items.push({
 			type: 'separator',
 			label: nls.localize('sidebar', "Side Bar")
 		});
-
-		const currentContainer = this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
-		const currentLocation = this.viewDescriptorService.getViewLocationById(focusedViewId)!;
-		const isViewSolo = this.viewDescriptorService.getViewContainerModel(currentContainer).allViewDescriptors.length === 1;
-
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
-			items.push({
-				id: '_.sidebar.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
-			});
-		}
 
 		const pinnedViewlets = this.activityBarService.getVisibleViewContainerIds();
 		items.push(...pinnedViewlets
@@ -727,13 +733,6 @@ export class MoveFocusedViewAction extends Action {
 			type: 'separator',
 			label: nls.localize('panel', "Panel")
 		});
-
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
-			items.push({
-				id: '_.panel.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
-			});
-		}
 
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		items.push(...pinnedPanels
