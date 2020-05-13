@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, IEditorPane } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorPane, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
@@ -25,6 +25,7 @@ import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { fuzzyScore, createMatches } from 'vs/base/common/filters';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -107,11 +108,13 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
 		const pane = this.editorService.activeEditorPane;
-		if (!pane || !TableOfContentsProviderRegistry.has(pane.getId())) {
-			//
-			return super.provideWithoutTextEditor(picker);
+		if (pane && TableOfContentsProviderRegistry.has(pane.getId())) {
+			return this.doGetTableOfContentsPicks(picker, pane);
 		}
+		return super.provideWithoutTextEditor(picker);
+	}
 
+	private doGetTableOfContentsPicks(picker: IQuickPick<IGotoSymbolQuickPickItem>, pane: IVisibleEditorPane): IDisposable {
 		const provider = TableOfContentsProviderRegistry.get(pane.getId())!;
 		const cts = new CancellationTokenSource();
 
@@ -133,7 +136,8 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 					kind: SymbolKind.File,
 					index: idx,
 					score: 0,
-					label: entry.label,
+					label: entry.icon ? `$(${entry.icon.id}) ${entry.label}` : entry.label,
+					ariaLabel: entry.detail ? `${entry.label}, ${entry.detail}` : entry.label,
 					detail: entry.detail,
 					description: entry.description,
 				};
@@ -142,7 +146,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			disposables.add(picker.onDidAccept(() => {
 				picker.hide();
 				const [entry] = picker.selectedItems;
-				entries[entry.index]?.reveal();
+				entries[entry.index]?.pick();
 			}));
 
 			const updatePickerItems = () => {
@@ -175,14 +179,11 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			let ignoreFirstActiveEvent = true;
 			disposables.add(picker.onDidChangeActive(() => {
 				const [entry] = picker.activeItems;
-
 				if (entry && entries[entry.index]) {
-					if (ignoreFirstActiveEvent) {
-						ignoreFirstActiveEvent = false;
-						return;
+					if (!ignoreFirstActiveEvent) {
+						entries[entry.index]?.preview();
 					}
-
-					entries[entry.index]?.reveal();
+					ignoreFirstActiveEvent = false;
 				}
 			}));
 
@@ -232,10 +233,12 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 //#region toc definition and logic
 
 export interface ITableOfContentsEntry {
+	icon?: ThemeIcon;
 	label: string;
 	detail?: string;
 	description?: string;
-	reveal(): any;
+	pick(): any;
+	preview(): any;
 }
 
 export interface ITableOfContentsProvider<T extends IEditorPane = IEditorPane> {
