@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -30,6 +30,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
@@ -60,9 +61,10 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
-				treeView.dataProvider = new UserDataSyncHistoryViewDataProvider(remote, this.userDataSyncService);
+				treeView.dataProvider = new UserDataSyncHistoryViewDataProvider(remote, this.userDataSyncService, this.userDataSyncEnablementService);
 			}
 		});
+		this._register(Event.any(this.userDataSyncEnablementService.onDidChangeResourceEnablement, this.userDataSyncEnablementService.onDidChangeEnablement)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,
@@ -200,7 +202,11 @@ interface SyncResourceTreeItem extends ITreeItem {
 
 class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 
-	constructor(private readonly remote: boolean, private userDataSyncService: IUserDataSyncService) { }
+	constructor(
+		private readonly remote: boolean,
+		private readonly userDataSyncService: IUserDataSyncService,
+		private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+	) { }
 
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
 		if (!element) {
@@ -208,6 +214,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 				handle: resourceKey,
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
 				label: { label: getSyncAreaLabel(resourceKey) },
+				description: !this.userDataSyncEnablementService.isEnabled() || this.userDataSyncEnablementService.isResourceEnabled(resourceKey) ? undefined : localize('not syncing', "Not syncing"),
 				themeIcon: FolderThemeIcon,
 			}));
 		}
