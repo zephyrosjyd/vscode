@@ -4,7 +4,8 @@
 		"dockerfile": "Dockerfile",
 		"args": {
 			"TARGET_VNC_RESOLUTION": "1440x900x16",
-			"TARGET_VNC_PORT": "5901"
+			"TARGET_VNC_PORT": "5901",
+			"TARGET_NOVNC_PORT": "6080"
 		}
 	},
 	"overrideCommand": false,
@@ -12,19 +13,25 @@
 	"settings": {
 		// zsh is also available
 		"terminal.integrated.shell.linux": "/bin/bash",
+		"resmon.show.battery": false,
+		"resmon.show.cpufreq": false,
 		"remote.extensionKind": {
 			"msjsdiag.debugger-for-chrome": "workspace"
 		}
 	},
 
-	// VNC port
+	// noVNC, VNC ports
 	"forwardPorts": [6080, 5901],
 
 	"extensions": [
 		"ms-vscode.vscode-typescript-tslint-plugin",
 		"dbaeumer.vscode-eslint",
 		"EditorConfig.EditorConfig",
-		"msjsdiag.debugger-for-chrome"
+		"msjsdiag.debugger-for-chrome",
+		"eamodio.gitlens",
+		"VisualStudioExptTeam.vscodeintellicode",
+		"GitHub.vscode-pull-request-github",
+		"mutantdino.resourcemonitor"
 	],
 
 	// [Optional] Use a volume for the node_modules folder to speed it up locally
