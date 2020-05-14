@@ -26,6 +26,7 @@ export class NotebookEditor extends BaseEditor {
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private readonly groupListener = this._register(new MutableDisposable());
 	private _widget: NotebookEditorWidget;
+	private _rootElement!: HTMLElement;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -68,13 +69,15 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._widget.createEditor(parent);
+		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
+
+		this._widget.createEditor();
 		this._register(this.onDidFocus(() => this._widget.updateEditorFocus()));
 		this._register(this.onDidBlur(() => this._widget.updateEditorFocus()));
 	}
 
 	getDomNode() {
-		return this._widget.getShadowDomNode();
+		return this._rootElement;
 	}
 
 	getControl() {
@@ -120,10 +123,11 @@ export class NotebookEditor extends BaseEditor {
 		const model = await input.resolve();
 
 		const viewState = this.loadTextEditorViewState(input);
-		this._widget.setModel(model, viewState, options);
+		this._widget.setModel(model.notebook, viewState, options);
 	}
 
 	clearInput(): void {
+		// de-ref widget
 		super.clearInput();
 	}
 
@@ -143,7 +147,10 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this._widget.layout(dimension);
+		DOM.toggleClass(this._rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
+		DOM.toggleClass(this._rootElement, 'narrow-width', dimension.width < 600);
+
+		this._widget.layout(dimension, this._rootElement);
 	}
 
 	protected saveState(): void {
