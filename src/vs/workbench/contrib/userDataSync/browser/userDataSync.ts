@@ -19,25 +19,23 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickSeparator, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT,
-	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, SHOW_SYNC_LOG_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, SHOW_SYNC_STATUS_COMMAND_ID, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID
+	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, MANAGE_SYNC_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, MANAGE_SYNC_VIEW_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -73,8 +71,8 @@ export const VIEW_CONTAINER_ID = 'workbench.view.sync';
 
 const turnOnSyncCommand = { id: TURN_ON_SYNC_COMMAND_ID, title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
 const turnOffSyncCommand = { id: TURN_OFF_SYNC_COMMAND_ID, title: localize('stop sync', "Preferences Sync: Turn Off") };
-const configureSyncCommand = { id: MANAGE_SYNC_COMMAND_ID, title: localize('configure sync', "Preferences Sync: Configure...") };
-const showSyncActivityCommand = { id: SHOW_SYNC_LOG_COMMAND_ID, title: localize('show sync log title', "Preferences Sync: Show Log") };
+const manageSyncCommand = { id: MANAGE_SYNC_COMMAND_ID, title: localize('manage sync', "Preferences Sync: Manage...") };
+const configureSyncCommand = { id: CONFIGURE_SYNC_COMMAND_ID, title: localize('configure sync', "Preferences Sync: Configure...") };
 const resolveSettingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
 const resolveSnippetsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "Preferences Sync: Show User Snippets Conflicts") };
@@ -120,7 +118,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IOutputService private readonly outputService: IOutputService,
 		@IAuthenticationTokenService readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -688,10 +685,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private showSyncActivity(): Promise<void> {
-		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
-	}
-
 	private registerActions(): void {
 		if (this.userDataSyncEnablementService.canToggleEnablement()) {
 			this.registerTurnOnSyncAction();
@@ -702,10 +695,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerShowSettingsConflictsAction();
 		this.registerShowKeybindingsConflictsAction();
 		this.registerShowSnippetsConflictsAction();
-		this.registerSyncStatusAction();
 
+		this.registerSyncStatusAction();
+		this.registerEnableSyncViewsAction();
+		this.registerManageSyncAction();
 		this.registerConfigureSyncAction();
-		this.registerShowActivityAction();
 		this.registerShowSettingsAction();
 	}
 
@@ -901,7 +895,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
-					id: SHOW_SYNC_STATUS_COMMAND_ID,
+					id: 'workbench.userData.actions.syncStatus',
 					title: localize('sync is on', "Preferences Sync is On"),
 					menu: [
 						{
@@ -925,8 +919,91 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): any {
+				return new Promise((c, e) => {
+					const quickInputService = accessor.get(IQuickInputService);
+					const commandService = accessor.get(ICommandService);
+					const disposables = new DisposableStore();
+					const quickPick = quickInputService.createQuickPick();
+					disposables.add(quickPick);
+					const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
+					if (that.userDataSyncService.conflicts.length) {
+						for (const { syncResource } of that.userDataSyncService.conflicts) {
+							switch (syncResource) {
+								case SyncResource.Settings:
+									items.push({ id: resolveSettingsConflictsCommand.id, label: resolveSettingsConflictsCommand.title });
+									break;
+								case SyncResource.Keybindings:
+									items.push({ id: resolveKeybindingsConflictsCommand.id, label: resolveKeybindingsConflictsCommand.title });
+									break;
+								case SyncResource.Snippets:
+									items.push({ id: resolveSnippetsConflictsCommand.id, label: resolveSnippetsConflictsCommand.title });
+									break;
+							}
+						}
+						items.push({ type: 'separator' });
+					}
+					items.push({ id: manageSyncCommand.id, label: manageSyncCommand.title });
+					items.push({ type: 'separator' });
+					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
+					if (that.userDataSyncEnablementService.canToggleEnablement()) {
+						const account = that.userDataSyncAccounts.current;
+						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getDisplayName(account.authenticationProviderId)})` : undefined });
+					}
+					quickPick.items = items;
+					disposables.add(quickPick.onDidAccept(() => {
+						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
+							commandService.executeCommand(quickPick.selectedItems[0].id);
+						}
+						quickPick.hide();
+					}));
+					disposables.add(quickPick.onDidHide(() => {
+						disposables.dispose();
+						c();
+					}));
+					quickPick.show();
+				});
+			}
+		}));
+	}
+
+	private registerEnableSyncViewsAction(): void {
+		const that = this;
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
+		this.registerSyncNowAction();
+		this._register(registerAction2(class SyncStatusAction extends Action2 {
+			constructor() {
+				super({
+					id: ENABLE_SYNC_VIEWS_COMMAND_ID,
+					title: ENABLE_SYNC_VIEWS_COMMAND_ID,
+					precondition: when
+				});
+			}
+			run(accessor: ServicesAccessor): any {
 				that.viewsEnablementContext.set(true);
-				that.viewsService.openViewContainer(VIEW_CONTAINER_ID);
+			}
+		}));
+	}
+
+	private registerManageSyncAction(): void {
+		const that = this;
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
+		this.registerSyncNowAction();
+		this._register(registerAction2(class SyncStatusAction extends Action2 {
+			constructor() {
+				super({
+					id: manageSyncCommand.id,
+					title: manageSyncCommand.title,
+					menu: [
+						{
+							id: MenuId.CommandPalette,
+							when,
+						}
+					],
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				await accessor.get(ICommandService).executeCommand(ENABLE_SYNC_VIEWS_COMMAND_ID);
+				that.viewsService.openView(MANAGE_SYNC_VIEW_ID);
 			}
 		}));
 	}
@@ -993,30 +1070,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				super({
 					id: configureSyncCommand.id,
 					title: configureSyncCommand.title,
-					menu: {
-						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
-					},
+					precondition: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
 				});
 			}
 			run(): any { return that.configureSyncOptions(); }
-		}));
-	}
-
-	private registerShowActivityAction(): void {
-		const that = this;
-		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
-			constructor() {
-				super({
-					id: showSyncActivityCommand.id,
-					title: showSyncActivityCommand.title,
-					menu: {
-						id: MenuId.CommandPalette,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
-					},
-				});
-			}
-			run(): any { return that.showSyncActivity(); }
 		}));
 	}
 
@@ -1061,7 +1118,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerConfigureSyncView(container: ViewContainer): void {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([{
-			id: 'workbench.views.sync.manage',
+			id: MANAGE_SYNC_VIEW_ID,
 			name: localize('configure', "Manage Sync"),
 			ctorDescriptor: new SyncDescriptor(UserDataSyncManageView),
 			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_VIEWS),

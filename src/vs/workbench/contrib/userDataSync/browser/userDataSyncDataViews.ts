@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, IUserDataSyncEnablementService, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -92,7 +92,7 @@ export class UserDataSyncDataViews extends Disposable {
 				const viewsService = accessor.get(IViewsService);
 				const commandService = accessor.get(ICommandService);
 
-				await commandService.executeCommand(SHOW_SYNC_STATUS_COMMAND_ID);
+				await commandService.executeCommand(ENABLE_SYNC_VIEWS_COMMAND_ID);
 				viewEnablementContext.set(true);
 
 				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);

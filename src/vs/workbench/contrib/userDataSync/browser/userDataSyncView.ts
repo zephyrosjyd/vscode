@@ -13,7 +13,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { UserDataSyncAccounts } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
-import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, SHOW_SYNC_LOG_COMMAND_ID, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, ALL_SYNC_RESOURCES, SyncResource, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, ALL_SYNC_RESOURCES, SyncResource, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
@@ -37,6 +37,8 @@ import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { Gesture } from 'vs/base/browser/touch';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -67,13 +69,14 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 		@IExtensionService extensionService: IExtensionService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IOutputService private readonly outputService: IOutputService,
 	) {
 		super(containerId, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 	}
 
 	getActions(): IAction[] {
 		return [
-			new Action('showSyncLog', localize('showLog', "Show Log"), Codicon.output.classNames, true, () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
+			new Action('showSyncLog', localize('showLog', "Show Log"), Codicon.output.classNames, true, async () => this.outputService.showChannel(Constants.userDataSyncLogChannelId)),
 		];
 	}
 
@@ -200,6 +203,14 @@ export class UserDataSyncManageView extends ViewPane {
 
 		this.list.splice(0, 0, ALL_SYNC_RESOURCES);
 
+	}
+
+	get minimumBodySize(): number {
+		return 22 * ALL_SYNC_RESOURCES.length + 10;
+	}
+
+	get maximumBodySize(): number {
+		return 22 * ALL_SYNC_RESOURCES.length + 10;
 	}
 
 	layoutBody(height: number, width: number): void {
