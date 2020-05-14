@@ -1,0 +1,39 @@
+{
+	"name": "VS Code Development",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"TARGET_VNC_RESOLUTION": "1440x900x16",
+			"TARGET_VNC_PORT": "5901"
+		}
+	},
+	"overrideCommand": false,
+
+	"settings": {
+		// zsh is also available
+		"terminal.integrated.shell.linux": "/bin/bash",
+		"remote.extensionKind": {
+			"msjsdiag.debugger-for-chrome": "workspace"
+		}
+	},
+
+	// VNC port
+	"forwardPorts": [3389, 6080, 5901],
+
+	"extensions": [
+		"ms-vscode.vscode-typescript-tslint-plugin",
+		"dbaeumer.vscode-eslint",
+		"EditorConfig.EditorConfig",
+		"msjsdiag.debugger-for-chrome"
+	],
+
+	// Use a volume for the node_modules folder to speed it up, be sure node user can access it
+	"mounts": [
+		"src=vscode-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
+		"src=vscode-build-node_modules,target=${containerWorkspaceFolder}/build/node_modules,type=volume"
+	],
+
+	"postCreateCommand": "sudo chown node:node ${containerWorkspaceFolder}/node_modules ${containerWorkspaceFolder}/build/node_modules",
+
+	"remoteUser": "node"
+}
