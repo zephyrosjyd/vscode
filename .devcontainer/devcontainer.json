@@ -18,7 +18,7 @@
 	},
 
 	// VNC port
-	"forwardPorts": [3389, 6080, 5901],
+	"forwardPorts": [6080, 5901],
 
 	"extensions": [
 		"ms-vscode.vscode-typescript-tslint-plugin",
@@ -27,13 +27,12 @@
 		"msjsdiag.debugger-for-chrome"
 	],
 
-	// Use a volume for the node_modules folder to speed it up, be sure node user can access it
-	"mounts": [
-		"src=vscode-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
-		"src=vscode-build-node_modules,target=${containerWorkspaceFolder}/build/node_modules,type=volume"
-	],
-
-	"postCreateCommand": "sudo chown node:node ${containerWorkspaceFolder}/node_modules ${containerWorkspaceFolder}/build/node_modules",
+	// [Optional] Use a volume for the node_modules folder to speed it up locally
+	// "mounts": [
+	// 	"src=vscode-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume",
+	// 	"src=vscode-build-node_modules,target=${containerWorkspaceFolder}/build/node_modules,type=volume"
+	// ],
+	// "postCreateCommand": "sudo chown node:node ${containerWorkspaceFolder}/node_modules ${containerWorkspaceFolder}/build/node_modules",
 
 	"remoteUser": "node"
 }

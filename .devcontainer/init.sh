@@ -2,6 +2,14 @@
 
 NONROOT_USER=node
 
+# Skip setup if things are already up
+if [ "$(ps -ef | grep 'dbus-daemon --system' | grep -v grep | wc -l)" != "0" ]; then
+	echo "Script already run."
+	# Run whatever was passed in
+	"$@"
+	exit 0
+fi
+
 # Use sudo to run as root when required
 sudoIf()
 {
