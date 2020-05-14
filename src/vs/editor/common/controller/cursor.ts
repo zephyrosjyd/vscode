@@ -662,139 +662,109 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 	}
 
-	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
-		const H = editorCommon.Handler;
-
-		if (handlerId === H.CompositionStart) {
-			this._isDoingComposition = true;
-			this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
-			return;
-		}
-
-		if (handlerId === H.CompositionEnd) {
-			this._isDoingComposition = false;
-		}
-
+	private _executeEdit(callback: () => void, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
 		if (this._configuration.options.get(EditorOption.readOnly)) {
-			// All the remaining handlers will try to edit the model,
-			// but we cannot edit when read only...
+			// we cannot edit when read only...
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
 			return;
 		}
 
 		const oldState = new CursorModelState(this._model, this);
-		let cursorChangeReason = CursorChangeReason.NotSet;
-
 		this._cursors.stopTrackingSelections();
-
-		// ensure valid state on all cursors
-		this._cursors.ensureValidState();
-
 		this._isHandling = true;
 
 		try {
-			switch (handlerId) {
-				case H.Type:
-					this._type(source, <string>payload.text);
-					break;
-
-				case H.ReplacePreviousChar:
-					this._replacePreviousChar(<string>payload.text, <number>payload.replaceCharCnt);
-					break;
-
-				case H.Paste:
-					cursorChangeReason = CursorChangeReason.Paste;
-					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText || []);
-					break;
-
-				case H.Cut:
-					this._cut();
-					break;
-
-				case H.ExecuteCommand:
-					this._externalExecuteCommand(<editorCommon.ICommand>payload);
-					break;
-
-				case H.ExecuteCommands:
-					this._externalExecuteCommands(<editorCommon.ICommand[]>payload);
-					break;
-
-				case H.CompositionEnd:
-					this._interpretCompositionEnd(source);
-					break;
-			}
+			this._cursors.ensureValidState();
+			callback();
 		} catch (err) {
 			onUnexpectedError(err);
 		}
 
 		this._isHandling = false;
-
 		this._cursors.startTrackingSelections();
-
 		this._validateAutoClosedActions();
-
 		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
 			this._revealRange(source, RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
 
-	private _interpretCompositionEnd(source: string | null | undefined) {
-		if (!this._isDoingComposition && source === 'keyboard') {
-			// composition finishes, let's check if we need to auto complete if necessary.
-			const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
-			this._selectionsWhenCompositionStarted = null;
-		}
+	public startComposition(): void {
+		this._isDoingComposition = true;
+		this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 	}
 
-	private _type(source: string | null | undefined, text: string): void {
-		if (source === 'keyboard') {
-			// If this event is coming straight from the keyboard, look for electric characters and enter
-
-			const len = text.length;
-			let offset = 0;
-			while (offset < len) {
-				const charLength = strings.nextCharLength(text, offset);
-				const chr = text.substr(offset, charLength);
-
-				// Here we must interpret each typed character individually
+	public endComposition(source?: string | null | undefined): void {
+		this._isDoingComposition = false;
+		this._executeEdit(() => {
+			if (!this._isDoingComposition && source === 'keyboard') {
+				// composition finishes, let's check if we need to auto complete if necessary.
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
-
-				offset += charLength;
+				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
+				this._selectionsWhenCompositionStarted = null;
 			}
-
-		} else {
-			this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text));
-		}
+		}, source);
 	}
 
-	private _replacePreviousChar(text: string, replaceCharCnt: number): void {
-		this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt));
+	public type(text: string, source?: string | null | undefined): void {
+		this._executeEdit(() => {
+			if (source === 'keyboard') {
+				// If this event is coming straight from the keyboard, look for electric characters and enter
+
+				const len = text.length;
+				let offset = 0;
+				while (offset < len) {
+					const charLength = strings.nextCharLength(text, offset);
+					const chr = text.substr(offset, charLength);
+
+					// Here we must interpret each typed character individually
+					const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+
+					offset += charLength;
+				}
+
+			} else {
+				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text));
+			}
+		}, source);
 	}
 
-	private _paste(text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
-		this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), text, pasteOnNewLine, multicursorText));
+	public replacePreviousChar(text: string, replaceCharCnt: number, source?: string | null | undefined): void {
+		this._executeEdit(() => {
+			this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt));
+		}, source);
 	}
 
-	private _cut(): void {
-		this._executeEditOperation(DeleteOperations.cut(this.context.config, this.context.model, this.getSelections()));
+	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+		this._executeEdit(() => {
+			this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), text, pasteOnNewLine, multicursorText || []));
+		}, source, CursorChangeReason.Paste);
 	}
 
-	private _externalExecuteCommand(command: editorCommon.ICommand): void {
-		this._cursors.killSecondaryCursors();
-
-		this._executeEditOperation(new EditOperationResult(EditOperationType.Other, [command], {
-			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false
-		}));
+	public cut(source?: string | null | undefined): void {
+		this._executeEdit(() => {
+			this._executeEditOperation(DeleteOperations.cut(this.context.config, this.context.model, this.getSelections()));
+		}, source);
 	}
 
-	private _externalExecuteCommands(commands: editorCommon.ICommand[]): void {
-		this._executeEditOperation(new EditOperationResult(EditOperationType.Other, commands, {
-			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false
-		}));
+	public executeCommand(command: editorCommon.ICommand, source?: string | null | undefined): void {
+		this._executeEdit(() => {
+			this._cursors.killSecondaryCursors();
+
+			this._executeEditOperation(new EditOperationResult(EditOperationType.Other, [command], {
+				shouldPushStackElementBefore: false,
+				shouldPushStackElementAfter: false
+			}));
+		}, source);
+	}
+
+	public executeCommands(commands: editorCommon.ICommand[], source?: string | null | undefined): void {
+		this._executeEdit(() => {
+			this._executeEditOperation(new EditOperationResult(EditOperationType.Other, commands, {
+				shouldPushStackElementBefore: false,
+				shouldPushStackElementAfter: false
+			}));
+		}, source);
 	}
 }
 
