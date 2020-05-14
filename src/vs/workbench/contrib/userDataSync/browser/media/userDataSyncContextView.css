@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sync-context-view {
+	width: 420px;
+	padding: 1em;
+	box-sizing: border-box;
+}
+
+.sync-context-view h2.title {
+	margin-top: 0;
+	padding: 0;
+	font-weight: normal;
+	font-size: 1.8em;
+}
+
+.sync-context-view .cancel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	padding: .5em;
+	width: 22px;
+	height: 22px;
+	line-height: 22px;
+	border: none;
+	cursor: pointer;
+}
+
+.sync-context-view .sync-account-container > * {
+	margin-block-end: 1em;
+}
+
+.sync-context-view .sync-account-container > .sync-account-info {
+	display: flex;
+}
+
+.sync-context-view .sync-account-container > .sync-account-info > .sync-account-icon {
+	font-size: 40px;
+	padding-right: 10px;
+}
+
+.sync-context-view .sync-account-container > .sync-account-info > .sync-account-details {
+	margin-top: auto;
+	margin-bottom: auto;
+}
+
+.sync-context-view .sync-account-container > .sync-account-info > .sync-account-details > .sync-status {
+	opacity: 0.7;
+	font-size: 0.9em;
+}
+
+.sync-context-view .buttons-container {
+	display: flex;
+	flex-direction: row-reverse;
+}
+
+.sync-context-view .monaco-button {
+	width: inherit;
+	min-width: 100px;
+}
+
+.sync-context-view .disabled {
+	display: none;
+}
+
+.sync-manage-view .sync-resource-container .name {
+	padding-left: 5px;
+}

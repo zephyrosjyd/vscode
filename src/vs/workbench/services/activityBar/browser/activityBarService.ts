@@ -6,6 +6,8 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 
 export const IActivityBarService = createDecorator<IActivityBarService>('activityBarService');
 
@@ -16,6 +18,11 @@ export interface IActivityBarService {
 	 * Show an activity in a viewlet.
 	 */
 	showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
+
+	/**
+	 * Show context view for the given activity or viewlet
+	 */
+	showContextView(viewletOrActionId: string, contextView: SyncDescriptor<Dropdown>): IDisposable;
 
 	/**
 	 * Returns id of pinned view containers following the visual order.
@@ -31,4 +38,5 @@ export interface IActivityBarService {
 	 * Focuses the activity bar.
 	 */
 	focusActivityBar(): void;
+
 }

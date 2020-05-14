@@ -25,7 +25,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickSeparator, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
@@ -53,6 +53,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, IViewsService, ViewContainer, IViewsRegistry } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncManageView } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncView';
 import { UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncDataViews';
+import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
+import { UserDataSyncContextView } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncContextView';
+import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -919,49 +922,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): any {
-				return new Promise((c, e) => {
-					const quickInputService = accessor.get(IQuickInputService);
-					const commandService = accessor.get(ICommandService);
-					const disposables = new DisposableStore();
-					const quickPick = quickInputService.createQuickPick();
-					disposables.add(quickPick);
-					const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
-					if (that.userDataSyncService.conflicts.length) {
-						for (const { syncResource } of that.userDataSyncService.conflicts) {
-							switch (syncResource) {
-								case SyncResource.Settings:
-									items.push({ id: resolveSettingsConflictsCommand.id, label: resolveSettingsConflictsCommand.title });
-									break;
-								case SyncResource.Keybindings:
-									items.push({ id: resolveKeybindingsConflictsCommand.id, label: resolveKeybindingsConflictsCommand.title });
-									break;
-								case SyncResource.Snippets:
-									items.push({ id: resolveSnippetsConflictsCommand.id, label: resolveSnippetsConflictsCommand.title });
-									break;
-							}
-						}
-						items.push({ type: 'separator' });
-					}
-					items.push({ id: manageSyncCommand.id, label: manageSyncCommand.title });
-					items.push({ type: 'separator' });
-					items.push({ id: syncNowCommand.id, label: syncNowCommand.title, description: syncNowCommand.description(that.userDataSyncService) });
-					if (that.userDataSyncEnablementService.canToggleEnablement()) {
-						const account = that.userDataSyncAccounts.current;
-						items.push({ id: turnOffSyncCommand.id, label: turnOffSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getDisplayName(account.authenticationProviderId)})` : undefined });
-					}
-					quickPick.items = items;
-					disposables.add(quickPick.onDidAccept(() => {
-						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
-							commandService.executeCommand(quickPick.selectedItems[0].id);
-						}
-						quickPick.hide();
-					}));
-					disposables.add(quickPick.onDidHide(() => {
-						disposables.dispose();
-						c();
-					}));
-					quickPick.show();
-				});
+				const activityBarService = accessor.get(IActivityBarService);
+				activityBarService.showContextView(GLOBAL_ACTIVITY_ID, new SyncDescriptor(UserDataSyncContextView, [{ userDataSyncAccount: that.userDataSyncAccounts.current! }]));
 			}
 		}));
 	}

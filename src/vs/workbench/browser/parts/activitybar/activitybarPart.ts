@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
-import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, ActionBar, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
@@ -41,6 +41,8 @@ import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
+import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 interface IPlaceholderViewContainer {
 	id: string;
@@ -265,6 +267,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		return Disposable.None;
+	}
+
+	showContextView(viewContainerOrActionId: string, popup: SyncDescriptor<Dropdown>): IDisposable {
+		const element = (<BaseActionViewItem>this.globalActivityActionBar!.viewItems[1]).element!;
+		const dropdown = (this.instantiationService as any).createInstance(popup.ctor, element, ...(popup.staticArguments || []));
+		dropdown.show();
+		return dropdown;
 	}
 
 	private showGlobalActivity(badge: IBadge, clazz?: string, priority?: number): IDisposable {
