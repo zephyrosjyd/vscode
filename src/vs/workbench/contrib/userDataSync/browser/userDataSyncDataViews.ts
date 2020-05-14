@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg, ViewContainer, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, SHOW_SYNC_STATUS_COMMAND_ID, IUserDataSyncEnablementService, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -18,16 +17,17 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
-import { CONTEXT_ACCOUNT_STATE, CONTEXT_ENABLE_VIEWS, VIEW_CONTAINER_ID } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
+import { CONTEXT_ACCOUNT_STATE, CONTEXT_ENABLE_VIEWS } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
 import { AccountStatus } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-export class UserDataSyncDataViewsContribution extends Disposable implements IWorkbenchContribution {
+export class UserDataSyncDataViews extends Disposable {
 
 	constructor(
+		container: ViewContainer,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -35,14 +35,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		const viewContainer = viewDescriptorService.getViewContainerById(VIEW_CONTAINER_ID);
-		if (viewContainer) {
-			this.registerViews(viewContainer);
-		} else {
-			this._register(Event.once(Event.filter(viewDescriptorService.onDidChangeViewContainers, () => !!viewDescriptorService.getViewContainerById(VIEW_CONTAINER_ID)))(() =>
-				this.registerViews(viewDescriptorService.getViewContainerById(VIEW_CONTAINER_ID)!)
-			));
-		}
+		this.registerViews(container);
 	}
 
 	private registerViews(container: ViewContainer): void {

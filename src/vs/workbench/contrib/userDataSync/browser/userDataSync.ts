@@ -54,6 +54,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, IViewsService, ViewContainer, IViewsRegistry } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncManageView } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncView';
+import { UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncDataViews';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -118,7 +119,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
 		@IAuthenticationTokenService readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
@@ -1040,6 +1041,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerViews(): void {
 		const container = this.registerViewContainer();
 		this.registerConfigureSyncView(container);
+		this.registerDataViews(container);
 	}
 
 	private registerViewContainer(): ViewContainer {
@@ -1068,6 +1070,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			collapsed: false,
 			order: 1,
 		}], container);
+	}
+
+	private registerDataViews(container: ViewContainer): void {
+		this._register(this.instantiationService.createInstance(UserDataSyncDataViews, container));
 	}
 
 }
