@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT,
-	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS
+	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ACCOUNT_STATE
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -88,7 +88,6 @@ const syncNowCommand = {
 const showSyncSettingsCommand = { id: 'workbench.userDataSync.actions.settings', title: localize('sync settings', "Preferences Sync: Show Settings"), };
 
 const CONTEXT_TURNING_ON_STATE = new RawContextKey<false>('userDataSyncTurningOn', false);
-export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -113,6 +112,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IOutputService private readonly outputService: IOutputService,
 		@IAuthenticationTokenService readonly authTokenService: IAuthenticationTokenService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -695,6 +695,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerSyncNowAction();
 		this.registerConfigureSyncAction();
 		this.registerShowSettingsAction();
+		this.registerShowLogAction();
 	}
 
 	private registerTurnOnSyncAction(): void {
@@ -1034,12 +1035,31 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerConfigureSyncAction(): void {
 		const that = this;
 		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT);
-		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
+		this._register(registerAction2(class ConfigureSyncAction extends Action2 {
 			constructor() {
 				super({
 					id: configureSyncCommand.id,
 					title: configureSyncCommand.title,
-					precondition: when,
+					menu: {
+						id: MenuId.CommandPalette,
+						when
+					}
+				});
+			}
+			run(): Promise<any> {
+				return that.turnOffEveryWhere();
+			}
+		}));
+	}
+
+	private registerShowLogAction(): void {
+		const that = this;
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT);
+		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
+			constructor() {
+				super({
+					id: SHOW_SYNC_LOG_COMMAND_ID,
+					title: localize('show sync log title', "Preferences Sync: Show Log"),
 					menu: {
 						id: MenuId.CommandPalette,
 						when
@@ -1081,7 +1101,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				name: localize('sync preferences', "Preferences Sync"),
 				ctorDescriptor: new SyncDescriptor(
 					UserDataSyncViewPaneContainer,
-					[viewContainerId, this.userDataSyncAccounts]
+					[viewContainerId]
 				),
 				icon: Codicon.sync.classNames,
 				hideIfEmpty: true,

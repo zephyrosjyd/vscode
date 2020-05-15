@@ -20,10 +20,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor } from 'vs/editor/common/editorCommon';
 
@@ -46,6 +46,10 @@ export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRu
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
 export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
+
+// Kernels
+
+export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
 
 export interface NotebookLayoutInfo {
 	width: number;
@@ -150,6 +154,8 @@ export interface INotebookEditor extends ICompositeCodeEditor {
 	 */
 	readonly onDidChangeModel: Event<void>;
 	isNotebookEditor: boolean;
+	activeKernel: INotebookKernelInfo | undefined;
+	readonly onDidChangeKernel: Event<void>;
 
 	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
@@ -434,6 +440,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	outputContainer: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
+	timer: TimerRenderer;
 }
 
 export interface IOutputTransformContribution {

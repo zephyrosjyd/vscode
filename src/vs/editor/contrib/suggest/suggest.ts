@@ -94,7 +94,7 @@ export class CompletionItem {
 			this.isInvalid = this.isInvalid
 				|| Range.spansMultipleLines(completion.range.insert) || Range.spansMultipleLines(completion.range.replace)
 				|| completion.range.insert.startLineNumber !== position.lineNumber || completion.range.replace.startLineNumber !== position.lineNumber
-				|| Range.compareRangesUsingStarts(completion.range.insert, completion.range.replace) !== 0;
+				|| completion.range.insert.startColumn !== completion.range.replace.startColumn;
 		}
 
 		// create the suggestion resolver
@@ -184,7 +184,7 @@ export async function provideSuggestionItems(
 		if (!container) {
 			return;
 		}
-		for (let suggestion of container.suggestions || []) {
+		for (let suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
 				// fill in default range when missing
 				if (!suggestion.range) {
@@ -204,18 +204,16 @@ export async function provideSuggestionItems(
 
 	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
 	// do so - no snippet filter, no special-providers-only request
-	const snippetCompletions = new Promise<void>((resolve, reject) => {
+	const snippetCompletions = (async () => {
 		if (!_snippetSuggestSupport || options.kindFilter.has(modes.CompletionItemKind.Snippet)) {
-			resolve();
+			return;
 		}
 		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
-			resolve();
+			return;
 		}
-		Promise.resolve(_snippetSuggestSupport.provideCompletionItems(model, position, context, token)).then(list => {
-			onCompletionList(_snippetSuggestSupport, list);
-			resolve();
-		}, reject);
-	});
+		const list = await _snippetSuggestSupport.provideCompletionItems(model, position, context, token);
+		onCompletionList(_snippetSuggestSupport, list);
+	})();
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops

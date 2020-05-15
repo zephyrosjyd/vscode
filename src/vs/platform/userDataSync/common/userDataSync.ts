@@ -409,3 +409,4 @@ export const TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID = 'workbench.userDataSync.actio
 export const ENABLE_SYNC_VIEWS_COMMAND_ID = 'workbench.userDataSync.actions.enableViews';
 export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.manage';
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
+export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';

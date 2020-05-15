@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, IUserDataSyncEnablementService, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, IUserDataSyncEnablementService, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ACCOUNT_STATE } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +17,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { FolderThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
-import { CONTEXT_ACCOUNT_STATE } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -32,14 +31,12 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	constructor(
 		containerId: string,
-		@IOutputService private readonly outputService: IOutputService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -56,7 +53,8 @@ export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	getActions(): IAction[] {
 		return [
-			new Action('showSyncLog', localize('showLog', "Show Log"), Codicon.output.classNames, true, async () => this.outputService.showChannel(Constants.userDataSyncLogChannelId)),
+			new Action(SHOW_SYNC_LOG_COMMAND_ID, localize('showLog', "Show Log"), Codicon.output.classNames, true, async () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
+			new Action(CONFIGURE_SYNC_COMMAND_ID, localize('configure', "Configure..."), Codicon.settingsGear.classNames, true, async () => this.commandService.executeCommand(CONFIGURE_SYNC_COMMAND_ID)),
 		];
 	}
 
@@ -324,4 +322,3 @@ function label(date: Date): string {
 		':' + pad(date.getMinutes(), 2) +
 		':' + pad(date.getSeconds(), 2);
 }
-

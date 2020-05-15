@@ -18,6 +18,8 @@ import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { NotImplementedProxy } from 'vs/base/common/types';
+import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 
 interface IObservable<T> {
 	proxy: T;
@@ -497,6 +499,8 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		public uri: URI,
 		private _proxy: MainThreadNotebookShape,
 		private _onDidReceiveMessage: Emitter<any>,
+		private _webviewId: string,
+		private _webviewInitData: WebviewInitData,
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
 	) {
@@ -584,6 +588,9 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		return this._proxy.$postMessage(this.document.handle, message);
 	}
 
+	asWebviewUri(localResource: vscode.Uri): vscode.Uri {
+		return asWebviewUri(this._webviewInitData, this._webviewId, localResource);
+	}
 }
 
 export class ExtHostNotebookOutputRenderer {
@@ -624,6 +631,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	private readonly _proxy: MainThreadNotebookShape;
 	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
+	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any>; }>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
@@ -654,7 +662,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 
-	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
+	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors, private readonly _webviewInitData: WebviewInitData) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 
 		commands.registerArgumentProcessor({
@@ -714,10 +722,25 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, !!provider.kernel);
 		return new VSCodeDisposable(() => {
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
+		});
+	}
+
+	registerNotebookKernel(extension: IExtensionDescription, id: string, selectors: vscode.GlobPattern[], kernel: vscode.NotebookKernel): vscode.Disposable {
+		if (this._notebookKernels.has(id)) {
+			throw new Error(`Notebook kernel for '${id}' already registered`);
+		}
+
+		this._notebookKernels.set(id, { kernel, extension });
+		const transformedSelectors = selectors.map(selector => typeConverters.GlobPattern.from(selector));
+
+		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation }, id, kernel.label, transformedSelectors, kernel.preloads || []);
+		return new VSCodeDisposable(() => {
+			this._notebookKernels.delete(id);
+			this._proxy.$unregisterNotebookKernel(id);
 		});
 	}
 
@@ -816,7 +839,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		};
 	}
 
-	async $executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void> {
+	async $executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
 		let document = this._documents.get(URI.revive(uri).toString());
 
 		if (!document) {
@@ -824,9 +847,40 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (this._notebookContentProviders.has(viewType)) {
-			let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+			const provider = this._notebookContentProviders.get(viewType)!.provider;
 
-			return this._notebookContentProviders.get(viewType)!.provider.executeCell(document, cell, token);
+			if (provider.kernel && useAttachedKernel) {
+				if (cell) {
+					return provider.kernel.executeCell(document, cell, token);
+				} else {
+					return provider.kernel.executeAllCells(document, token);
+				}
+			} else {
+				return provider.executeCell(document, cell, token);
+			}
+		}
+	}
+
+	async $executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void> {
+		let document = this._documents.get(URI.revive(uri).toString());
+
+		if (!document || document.viewType !== viewType) {
+			return;
+		}
+
+		let kernelInfo = this._notebookKernels.get(kernelId);
+
+		if (!kernelInfo) {
+			return;
+		}
+
+		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
+
+		if (cell) {
+			return kernelInfo.kernel.executeCell(document, cell, token);
+		} else {
+			return kernelInfo.kernel.executeAllCells(document, token);
 		}
 	}
 
@@ -910,6 +964,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				editor.editor.selection = undefined;
 			}
 		}
+
+		if (data.metadata) {
+			editor.editor.document.metadata = {
+				...notebookDocumentMetadataDefaults,
+				...data.metadata
+			};
+		}
 	}
 
 	async $acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta) {
@@ -939,6 +1000,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const viewType = modelData.viewType;
 				if (!this._documents.has(revivedUri.toString())) {
 					let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
+					if (modelData.metadata) {
+						document.metadata = {
+							...notebookDocumentMetadataDefaults,
+							...modelData.metadata
+						};
+					}
+
 					this._documents.set(revivedUri.toString(), document);
 				}
 
@@ -951,6 +1019,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					revivedUri,
 					this._proxy,
 					onDidReceiveMessage,
+					modelData.webviewId,
+					this._webviewInitData,
 					document,
 					this._documentsAndEditors
 				);

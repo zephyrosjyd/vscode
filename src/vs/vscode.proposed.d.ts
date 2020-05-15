@@ -43,6 +43,23 @@ declare module 'vscode' {
 		readonly removed: string[];
 	}
 
+
+	/**
+	 * Options to be used when getting a session from an [AuthenticationProvider](#AuthenticationProvider).
+	 */
+	export interface AuthenticationGetSessionOptions {
+		/**
+		 *  Whether login should be performed if there is no matching session. Defaults to false.
+		 */
+		createIfNone?: boolean;
+
+		/**
+		 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
+		 * Defaults to false.
+		 */
+		clearSessionPreference?: boolean;
+	}
+
 	/**
 	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
 	*/
@@ -75,12 +92,16 @@ declare module 'vscode' {
 		 * another provider with the same id will fail.
 		 */
 		readonly id: string;
+
+		/**
+		 * The human-readable name of the provider.
+		 */
 		readonly displayName: string;
 
 		/**
-		 * Whether it is possible to be signed into multiple accounts at once.
-		 */
-		supportsMultipleAccounts: boolean;
+		 * Whether it is possible to be signed into multiple accounts at once with this provider
+		*/
+		readonly supportsMultipleAccounts: boolean;
 
 		/**
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
@@ -97,10 +118,24 @@ declare module 'vscode' {
 		 * Prompts a user to login.
 		 */
 		login(scopes: string[]): Thenable<AuthenticationSession>;
+
+		/**
+		 * Removes the session corresponding to session id.
+		 * @param sessionId The session id to log out of
+		 */
 		logout(sessionId: string): Thenable<void>;
 	}
 
 	export namespace authentication {
+		/**
+		 * Register an authentication provider.
+		 *
+		 * There can only be one provider per id and an error is being thrown when an id
+		 * has already been used by another provider.
+		 *
+		 * @param provider The authentication provider provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
 		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
 
 		/**
@@ -120,21 +155,9 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
 		 * provider
+		 * @returns A thenable that resolve to whether the provider has sessions with the requested scopes.
 		 */
 		export function hasSessions(providerId: string, scopes: string[]): Thenable<boolean>;
-
-		export interface GetSessionOptions {
-			/**
-			 *  Whether login should be performed if there is no matching session. Defaults to false.
-			 */
-			createIfNone?: boolean;
-
-			/**
-			 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
-			 * Defaults to false.
-			 */
-			clearSessionPreference?: boolean;
-		}
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -144,8 +167,10 @@ declare module 'vscode' {
 		 * @param providerId The id of the provider to use
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
+		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions and
+		 * `createIfNone` was not specified.
 		 */
-		export function getSession(providerId: string, scopes: string[], options: GetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * @deprecated
@@ -1567,6 +1592,12 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
+		 * Controls if the cell has a margin to support the breakpoint UI.
+		 * This metadata is ignored for markdown cell.
+		 */
+		breakpointMargin?: boolean;
+
+		/**
 		 * The order in which this cell was executed.
 		 */
 		executionOrder?: number;
@@ -1580,6 +1611,21 @@ declare module 'vscode' {
 		 * The cell's current run state
 		 */
 		runState?: NotebookCellRunState;
+
+		/**
+		 * If the cell is running, the time at which the cell started running
+		 */
+		runStartTime?: number;
+
+		/**
+		 * The total duration of the cell's last run
+		 */
+		lastRunDuration?: number;
+
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		custom?: { [key: string]: any };
 	}
 
 	export interface NotebookCell {
@@ -1625,6 +1671,11 @@ declare module 'vscode' {
 		hasExecutionOrder?: boolean;
 
 		displayOrder?: GlobPattern[];
+
+		/**
+		 * Additional attributes of the document metadata.
+		 */
+		custom?: { [key: string]: any };
 	}
 
 	export interface NotebookDocument {
@@ -1665,7 +1716,9 @@ declare module 'vscode' {
 		 * The primary selected cell on this notebook editor.
 		 */
 		readonly selection?: NotebookCell;
+
 		viewColumn?: ViewColumn;
+
 		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
@@ -1678,6 +1731,11 @@ declare module 'vscode' {
 		 * @param message Body of the message. This must be a string or other json serilizable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
 
 		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}
@@ -1741,10 +1799,19 @@ declare module 'vscode' {
 		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 
+		kernel?: NotebookKernel;
+
 		/**
 		 * Responsible for filling in outputs for the cell
 		 */
 		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
+	}
+
+	export interface NotebookKernel {
+		label: string;
+		preloads?: Uri[];
+		executeCell(document: NotebookDocument, cell: NotebookCell, token: CancellationToken): Promise<void>;
+		executeAllCells(document: NotebookDocument, token: CancellationToken): Promise<void>;
 	}
 
 	export namespace notebook {
@@ -1753,8 +1820,14 @@ declare module 'vscode' {
 			provider: NotebookContentProvider
 		): Disposable;
 
+		export function registerNotebookKernel(
+			id: string,
+			selectors: GlobPattern[],
+			kernel: NotebookKernel
+		): Disposable;
+
 		export function registerNotebookOutputRenderer(
-			type: string,
+			id: string,
 			outputSelector: NotebookOutputSelector,
 			renderer: NotebookOutputRenderer
 		): Disposable;
