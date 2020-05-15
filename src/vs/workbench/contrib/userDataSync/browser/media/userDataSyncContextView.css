@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .sync-context-view {
-	width: 420px;
+	width:300px;
 	padding: 1em;
 	box-sizing: border-box;
 }
@@ -13,7 +13,7 @@
 	margin-top: 0;
 	padding: 0;
 	font-weight: normal;
-	font-size: 1.8em;
+	font-size: 1.5em;
 }
 
 .sync-context-view .cancel {
