@@ -3,7 +3,7 @@
 NONROOT_USER=node
 
 # Skip setup if things are already up
-if [ "$(ps -ef | grep 'dbus-daemon --system' | grep -v grep | wc -l)" != "0" ]; then
+if [ "$(ps -ef | grep 'dbus-daemon --session' | grep -v grep | wc -l)" != "0" ]; then
 	echo "Script already run."
 	# Run whatever was passed in
 	"$@"
@@ -32,10 +32,10 @@ sudoUIf()
 
 # Set up Xvfb, fluxbox, VNC, noVNC, and dbus for the user we will run as
 (sudoIf Xvfb ${DISPLAY:-":1"} -screen 0 ${VNC_RESOLUTION:-"1920x1080x16"} 2>&1 | sudoIf tee /tmp/xvfb.log > /dev/null &)
-(sudoUIf startfluxbox 2>&1 | sudoIf tee /tmp/fluxbox.log > /dev/null &)
+(sudoUIf  sh -c "while true; do startfluxbox; sleep 1000; done" 2>&1 | sudoIf tee /tmp/fluxbox.log > /dev/null &)
 
 # Start x11vnc. We can hit a race condition where the display is not availabe yet, so keep trying if it fails
-(sudoIf sh -c "while true; do x11vnc -display ${DISPLAY:-':1'} -rfbport ${VNC_PORT:-'5901'}  -listen localhost -rfbportv6 ${VNC_PORT:-'5901'} -listenv6 localhost -xkb -shared -forever -nopw -bg; sleep 1000; done" 2>&1 | sudoIf tee /tmp/x11vnc.log > /dev/null &)
+(sudoIf sh -c "while true; do x11vnc -display ${DISPLAY:-':1'} -rfbport ${VNC_PORT:-'5901'}  -listen localhost -rfbportv6 ${VNC_PORT:-'5901'} -listenv6 localhost -xkb -shared -forever -nopw; sleep 1000; done" 2>&1 | sudoIf tee /tmp/x11vnc.log > /dev/null &)
 
 # Spin up noVNC
 (sudoIf /usr/local/novnc/noVNC*/utils/launch.sh --listen ${NOVNC_PORT:-"6080"} --vnc localhost:${VNC_PORT:-"5901"} 2>&1 | sudoIf tee /tmp/novnc.log > /dev/null &)
