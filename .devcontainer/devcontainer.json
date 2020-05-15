@@ -16,8 +16,9 @@
 		"resmon.show.battery": false,
 		"resmon.show.cpufreq": false,
 		"remote.extensionKind": {
-			"msjsdiag.debugger-for-chrome": "workspace"
-		}
+			"ms-vscode.js-debug-nightly": "workspace"
+		},
+		"debug.chrome.useV3": true
 	},
 
 	// noVNC, VNC ports
@@ -27,7 +28,7 @@
 		"ms-vscode.vscode-typescript-tslint-plugin",
 		"dbaeumer.vscode-eslint",
 		"EditorConfig.EditorConfig",
-		"msjsdiag.debugger-for-chrome",
+		"ms-vscode.js-debug-nightly",
 		"eamodio.gitlens",
 		"VisualStudioExptTeam.vscodeintellicode",
 		"GitHub.vscode-pull-request-github",
