@@ -36,6 +36,8 @@ import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWid
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -679,6 +681,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
+	private showSyncActivity(): Promise<void> {
+		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
+	}
+
 	private registerActions(): void {
 		if (this.userDataSyncEnablementService.canToggleEnablement()) {
 			this.registerTurnOnSyncAction();
@@ -1046,15 +1052,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			run(): Promise<any> {
-				return that.turnOffEveryWhere();
-			}
+			run(): any { return that.configureSyncOptions(); }
 		}));
 	}
 
 	private registerShowLogAction(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT);
 		this._register(registerAction2(class ShowSyncActivityAction extends Action2 {
 			constructor() {
 				super({
@@ -1062,11 +1065,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('show sync log title', "Preferences Sync: Show Log"),
 					menu: {
 						id: MenuId.CommandPalette,
-						when
-					}
+						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
+					},
 				});
 			}
-			run(): any { return that.configureSyncOptions(); }
+			run(): any { return that.showSyncActivity(); }
 		}));
 	}
 
