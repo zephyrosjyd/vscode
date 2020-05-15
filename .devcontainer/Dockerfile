@@ -22,17 +22,21 @@ ENV DBUS_SESSION_BUS_ADDRESS="unix:abstract=/tmp/dbus-session" \
 	VNC_RESOLUTION="${TARGET_VNC_RESOLUTION}" \
 	VNC_PORT="${TARGET_VNC_PORT}" \
 	NOVNC_PORT="${TARGET_NOVNC_PORT}" \
-	DISPLAY="${TARGET_DISPLAY}"
+	DISPLAY="${TARGET_DISPLAY}" \
+	VISUAL="nano" \
+	EDITOR="nano"
 
-COPY init.sh /usr/local/bin
+COPY init-dev-container /usr/local/bin/
 
 # Configure apt and install packages
 RUN apt-get update \
 	&& export DEBIAN_FRONTEND=noninteractive \
 	#
 	# Install X11, fluxbox and VS Code dependencies
-	&& apt-get install -y xvfb \
+	&& apt-get -y install --no-install-recommends \
+		xvfb \
 		fluxbox \
+		x11-xserver-utils \
 		xterm \
 		libx11-dev \
 		libxkbfile-dev \
@@ -42,8 +46,11 @@ RUN apt-get update \
 		libxss1 \
 		libasound2 \
 		gnome-keyring \
+		nano \
 	&& mkdir -p /var/run/dbus \
-	&& chmod +x /usr/local/bin/init.sh \
+	&& touch /root/.Xmodmap /home/${USERNAME}/.Xmodmap \
+	&& chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.Xmodmap \
+	&& chmod +x /usr/local/bin/init-dev-container \
 	#
 	# TODO: https://github.com/microsoft/cascadia-code/releases/download/v2004.30/CascadiaCode_2004.30.zip
 	#
@@ -69,5 +76,5 @@ RUN apt-get update \
 	&& apt-get clean -y \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT ["/usr/local/bin/init.sh"]
+ENTRYPOINT ["/usr/local/bin/init-dev-container"]
 CMD ["sleep", "infinity"]
