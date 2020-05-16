@@ -8,9 +8,9 @@ startInBackgroundIfNotRunning()
 {
 	log "Starting $1."
 	echo -e "\n** $(date) **" | sudoIf tee -a /tmp/$1.log > /dev/null
-	if [ "$(ps -ef | grep "$2" | grep -v grep | wc -l)" = "0" ]; then
+	if ! ps -p $(cat /tmp/$1.pid > /dev/null 2>&1) > /dev/null 2>&1; then
 		echo "$4" | sudoIf tee -a /tmp/$1.log > /dev/null
-		($3 sh -c "while true; do $4; sleep 5000; done 2>&1" | sudoIf tee -a /tmp/$1.log > /dev/null &)
+		($3 sh -c "while true; do $4; sleep 5000; done 2>&1" | sudoIf tee -a /tmp/$1.log > /dev/null & echo "$!" | sudoIf tee /tmp/$1.pid > /dev/null)
 		log "$1 started."
 	else
 		echo "$1 is already running." | sudoIf tee -a /tmp/$1.log > /dev/null
@@ -53,10 +53,18 @@ startInBackgroundIfNotRunning "Xvfb" "Xvfb" sudoIf "Xvfb ${DISPLAY:-:1} -screen 
 startInBackgroundIfNotRunning "fluxbox" "fluxbox" sudoUserIf "startfluxbox"
 
 # Start x11vnc. We can hit a race condition where the display is not availabe yet, so keep trying if it fails
-startInBackgroundIfNotRunning "x11vnc" "x11vnc" sudoIf "x11vnc -display ${DISPLAY:-:1} -rfbport ${VNC_PORT:-5901}  -listen localhost -rfbportv6 ${VNC_PORT:-5901} -listenv6 localhost -xkb -shared -forever -nopw"
+if type x11vnc 2>&1 > /dev/null; then
+	startInBackgroundIfNotRunning "x11vnc" "x11vnc" sudoIf "x11vnc -display ${DISPLAY:-:1} -rfbport ${VNC_PORT:-5901}  -listen localhost -rfbportv6 ${VNC_PORT:-5901} -listenv6 localhost -xkb -shared -forever -nopw"
+else
+	log "Skipping x11vnc - not installed."
+fi
 
 # Spin up noVNC
-startInBackgroundIfNotRunning "noVNC" "noVNC" sudoIf "/usr/local/novnc/noVNC*/utils/launch.sh --listen ${NOVNC_PORT:-6080} --vnc localhost:${VNC_PORT:-5901}"
+if [ -d "/usr/local/novnc" ]; then
+	startInBackgroundIfNotRunning "noVNC" "noVNC" sudoIf "/usr/local/novnc/noVNC*/utils/launch.sh --listen ${NOVNC_PORT:-6080} --vnc localhost:${VNC_PORT:-5901}"
+else
+	log "Skipping noVNC - not installed."
+fi
 
 # Start dbus
 startInBackgroundIfNotRunning "dbus-daemon-system" "dbus-daemon --system" sudoIf "dbus-daemon --system"

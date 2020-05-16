@@ -3,7 +3,7 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": {
-			"TARGET_VNC_RESOLUTION": "1440x900x16",
+			"TARGET_VNC_RESOLUTION": "1280x720x16",
 			"TARGET_VNC_PORT": "5901",
 			"TARGET_NOVNC_PORT": "6080"
 		}

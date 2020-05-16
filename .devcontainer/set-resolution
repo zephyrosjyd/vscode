@@ -1,0 +1,5 @@
+#!/bin/bash
+RESOLUTION=${1:-1280x720}
+DPI=${3:-16}
+xrandr  --fbmm ${RESOLUTION}
+xrandr --fb ${RESOLUTION}  --dpi ${DPI}
