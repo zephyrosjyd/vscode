@@ -1,5 +1,8 @@
 #!/bin/bash
-RESOLUTION=${1:-1280x720}
-DPI=${3:-16}
-xrandr  --fbmm ${RESOLUTION}
-xrandr --fb ${RESOLUTION}  --dpi ${DPI}
+if [ -z "$1" ]; then
+	echo -e "Sets the resolution of the VNC session.\n\nSyntax:\n\n    set-resolution <WIDTHxHEIGHT>\n\nFor example:\n\n    set-resolution 1280x720"
+	exit 1
+fi
+
+xrandr  --fbmm $1
+xrandr --fb $1
