@@ -8,7 +8,7 @@ startInBackgroundIfNotRunning()
 {
 	log "Starting $1."
 	echo -e "\n** $(date) **" | sudoIf tee -a /tmp/$1.log > /dev/null
-	if ! ps -p $(cat /tmp/$1.pid > /dev/null 2>&1) > /dev/null 2>&1; then
+	if [ ! -f "/tmp/$1.pid" ] || ! ps -p $(cat /tmp/$1.pid) > /dev/null; then
 		echo "$4" | sudoIf tee -a /tmp/$1.log > /dev/null
 		($3 sh -c "while true; do $4; sleep 5000; done 2>&1" | sudoIf tee -a /tmp/$1.log > /dev/null & echo "$!" | sudoIf tee /tmp/$1.pid > /dev/null)
 		log "$1 started."

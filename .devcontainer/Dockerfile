@@ -26,7 +26,8 @@ ENV DBUS_SESSION_BUS_ADDRESS="unix:abstract=/tmp/dbus-session" \
 	VISUAL="nano" \
 	EDITOR="nano"
 
-COPY init-dev-container set-resolution /usr/local/bin/
+COPY init-dev-container.sh set-resolution /usr/local/share/
+COPY set-resolution /usr/local/bin/
 
 # Configure apt and install packages
 RUN apt-get update \
@@ -52,7 +53,7 @@ RUN apt-get update \
 	&& mkdir -p /var/run/dbus \
 	&& touch /root/.Xmodmap /home/${USERNAME}/.Xmodmap \
 	&& chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.Xmodmap \
-	&& chmod +x /usr/local/bin/init-dev-container /usr/local/bin/set-resolution \
+	&& chmod +x /usr/local/share/init-dev-container.sh /usr/local/bin/set-resolution \
 	#
 	# Install the Cascadia Code fonts - https://github.com/microsoft/cascadia-code
 	&& curl -sSL https://github.com/microsoft/cascadia-code/releases/download/v2004.30/CascadiaCode_2004.30.zip -o /tmp/cascadia-fonts.zip \
@@ -83,5 +84,5 @@ RUN apt-get update \
 	&& apt-get clean -y \
 	&& rm -rf /var/lib/apt/lists/*
 
-ENTRYPOINT ["/usr/local/bin/init-dev-container"]
+ENTRYPOINT ["/usr/local/share/init-dev-container.sh"]
 CMD ["sleep", "infinity"]
