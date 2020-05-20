@@ -171,10 +171,22 @@ async function handleRoot(req, res) {
 		});
 	});
 
+	const match = req.url && req.url.match(/\?([^#]+)/);
+	let ghPath;
+	if (match) {
+		const qs = new URLSearchParams(match[1]);
+		ghPath = qs.get('gh');
+		if (ghPath && !ghPath.startsWith('/')) {
+			ghPath = '/' + ghPath;
+		}
+	}
+
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 			staticExtensions,
-			folderUri: { scheme: 'memfs', path: `/sample-folder` }
+			folderUri: ghPath
+				? { scheme: 'github', authority: 'github.com', path: ghPath }
+				: { scheme: 'memfs', path: `/sample-folder` }
 		})))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
