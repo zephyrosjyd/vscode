@@ -1,0 +1,18 @@
+#!/bin/bash
+RESOLUTION=${1:-${VNC_RESOLUTION:-1920x1080}}
+if [ -z "$1" ]; then
+	echo -e "**Current Settings **\n"
+	xrandr
+	echo -n -e "\nEnter new resolution (WIDTHxHEIGHT, blank for ${RESOLUTION}, Ctrl+C to abort).\n> "
+	read NEW_RES
+	if [ "${NEW_RES}" != "" ]; then
+		RESOLUTION=${NEW_RES}
+	fi
+fi
+
+xrandr --fbmm ${RESOLUTION} > /dev/null 2>&1
+xrandr --fb ${RESOLUTION} > /dev/null 2>&1
+
+echo -e "\n**New Settings **\n"
+xrandr
+echo

@@ -8,7 +8,8 @@ FROM mcr.microsoft.com/vscode/devcontainers/typescript-node:0-10
 ARG TARGET_DISPLAY=":1"
 
 ARG INSTALL_VNC="true"
-ARG TARGET_VNC_RESOLUTION=1280x720x16
+ARG MAX_VNC_RESOLUTION=1920x1080x16
+ARG TARGET_VNC_RESOLUTION=1920x1080
 ARG TARGET_VNC_PORT=5901
 
 ARG INSTALL_NOVNC="true"
@@ -18,16 +19,21 @@ ARG WEBSOCKETIFY_VERSION=0.9.0
 
 ARG USERNAME=node
 
-ENV DBUS_SESSION_BUS_ADDRESS="unix:abstract=/tmp/dbus-session" \
+ENV DBUS_SESSION_BUS_ADDRESS="autolaunch:" \
+	MAX_VNC_RESOLUTION="${MAX_VNC_RESOLUTION}" \
 	VNC_RESOLUTION="${TARGET_VNC_RESOLUTION}" \
 	VNC_PORT="${TARGET_VNC_PORT}" \
 	NOVNC_PORT="${TARGET_NOVNC_PORT}" \
 	DISPLAY="${TARGET_DISPLAY}" \
+	LANG="en_US.UTF-8" \
+	LANGUAGE="en_US.UTF-8" \
 	VISUAL="nano" \
 	EDITOR="nano"
 
-COPY init-dev-container.sh set-resolution /usr/local/share/
-COPY set-resolution /usr/local/bin/
+COPY bin/init-dev-container.sh /usr/local/share/
+COPY bin/set-resolution /usr/local/bin/
+COPY fluxbox/* /root/.fluxbox/
+COPY fluxbox/* /home/${USERNAME}/.fluxbox/
 
 # Configure apt and install packages
 RUN apt-get update \
@@ -37,8 +43,13 @@ RUN apt-get update \
 	&& apt-get -y install --no-install-recommends \
 		xvfb \
 		fluxbox \
+		dbus-x11 \
+		x11-utils \
 		x11-xserver-utils \
 		xterm \
+		eterm \
+		gnome-terminal \
+		nautilus \
 		libx11-dev \
 		libxkbfile-dev \
 		libsecret-1-dev \
@@ -47,12 +58,16 @@ RUN apt-get update \
 		libxss1 \
 		libasound2 \
 		gnome-keyring \
+		seahorse \
+		xfonts-base \
+		fonts-noto \
 		fonts-wqy-microhei \
 		fonts-droid-fallback \
+		vim-tiny \
 		nano \
 	&& mkdir -p /var/run/dbus \
 	&& touch /root/.Xmodmap /home/${USERNAME}/.Xmodmap \
-	&& chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.Xmodmap \
+	&& chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/.Xmodmap /home/${USERNAME}/.fluxbox \
 	&& chmod +x /usr/local/share/init-dev-container.sh /usr/local/bin/set-resolution \
 	#
 	# Install the Cascadia Code fonts - https://github.com/microsoft/cascadia-code
